@@ -1,3 +1,4 @@
+@import "./compact.wxss";
 page { min-height: 100vh; }
 .page-shell { min-height: 100vh; padding-bottom: 150rpx; }
 .hero { display:flex; justify-content:space-between; align-items:flex-end; padding: 44rpx 40rpx 32rpx; background:#f6f7f2; }

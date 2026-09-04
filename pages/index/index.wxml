@@ -1,41 +1,30 @@
-<navigation-bar title="家宴菜单" back="{{false}}" color="#20302A" background="#F6F7F2"></navigation-bar>
 <view class="page-shell">
   <view class="hero">
-    <view>
-      <text class="eyebrow">TODAY'S TABLE</text>
-      <view class="hero-title">今天吃什么，家人一起选</view>
-      <view class="hero-subtitle">把想吃的放进菜单，开饭前一起确认</view>
-    </view>
-    <view class="hero-mark">⌁</view>
-  </view>
-
-  <view class="tabs">
-    <view class="tab {{activeTab === 'menu' ? 'tab-active' : ''}}" data-tab="menu" bindtap="switchTab">点菜 <text wx:if="{{basketCount}}" class="tab-count">{{basketCount}}</text></view>
-    <view class="tab {{activeTab === 'orders' ? 'tab-active' : ''}}" data-tab="orders" bindtap="switchTab">订单 <text wx:if="{{orders.length}}" class="tab-count muted">{{orders.length}}</text></view>
-    <view class="tab {{activeTab === 'family' ? 'tab-active' : ''}}" data-tab="family" bindtap="switchTab">家庭</view>
+    <view class="hero-avatar">{{family ? family.name : '丹'}}</view>
+    <view class="hero-copy"><view class="hero-title">{{family ? family.name : '丹丹的小厨房'}}</view><view class="hero-subtitle">今天想吃点什么？</view></view>
+    <view class="hero-actions"><view class="hero-icon">⌕</view><view class="hero-icon" bindtap="openFamily">☰</view></view>
   </view>
 
   <scroll-view wx:if="{{activeTab === 'menu'}}" class="content" scroll-y refresher-enabled="true" bindrefresherrefresh="onPullDownRefresh">
     <view wx:if="{{error}}" class="error-banner">{{error}}</view>
-    <scroll-view class="category-list" scroll-x>
-      <view wx:for="{{categories}}" wx:key="id" class="category {{activeCategory === item.name ? 'category-active' : ''}}" data-category="{{item.name}}" bindtap="selectCategory">{{item.name}}</view>
-    </scroll-view>
-    <view wx:if="{{loading}}" class="empty-state"><text class="loading-dot">●</text><text>正在准备今日菜单</text></view>
-    <view wx:elif="{{!displayDishes.length}}" class="empty-state"><text class="empty-icon">⌂</text><text>还没有可供应的菜品</text></view>
-    <view wx:else class="dish-grid">
-      <block wx:for="{{displayDishes}}" wx:key="id">
-        <view class="dish-card">
-          <image class="dish-image" src="{{item.imageUrl || defaultDishUrl}}" mode="aspectFill" lazy-load="true"></image>
-          <view class="dish-info">
-            <view class="dish-name">{{item.name}}</view>
-            <view class="dish-category">{{item.category}}</view>
-            <view class="dish-action">
-              <view wx:if="{{item.quantity}}" class="stepper"><text class="step" data-id="{{item.id}}" bindtap="decreaseDish">−</text><text class="quantity">{{item.quantity}}</text><text class="step" data-id="{{item.id}}" bindtap="increaseDish">＋</text></view>
-              <button wx:else class="add-button" data-id="{{item.id}}" bindtap="addDish">加入菜单</button>
-            </view>
+    <view class="menu-layout">
+      <view class="category-list" style="min-height:calc(100vh - 210rpx);background:#f4f6f5">
+        <view wx:for="{{categories}}" wx:key="id" class="category {{activeCategory === item.name ? 'category-active' : ''}}" data-category="{{item.name}}" bindtap="selectCategory">{{item.name}}</view>
+      </view>
+      <view class="dish-panel">
+        <view class="dish-heading"><text>{{activeCategory || '全部菜品'}}</text><text class="dish-count">{{displayDishes.length}} 道</text></view>
+        <view wx:if="{{loading}}" class="empty-state"><text class="loading-dot">●</text><text>正在准备今日菜单</text></view>
+        <view wx:elif="{{!displayDishes.length}}" class="empty-state"><text class="empty-icon">⌂</text><text>还没有可供应的菜品</text></view>
+        <block wx:else>
+          <block wx:for="{{displayDishes}}" wx:key="id">
+          <view class="dish-card" style="display:flex;align-items:center;min-height:150rpx;margin:0;padding:14rpx 0;border:0;border-bottom:1rpx solid #f0f2f0;box-shadow:none">
+            <image class="dish-image" style="flex:none;width:142rpx;height:142rpx;border-radius:20rpx" src="{{item.imageUrl || defaultDishUrl}}" mode="aspectFill" lazy-load="true"></image>
+            <view class="dish-info" style="flex:1;min-width:0;padding:0 14rpx"><view class="dish-name">{{item.name}}</view><view class="dish-category dish-description">{{item.description}}</view><view class="dish-rating">★★★★★</view></view>
+            <view class="dish-action" style="flex:none;margin:0;min-height:0"><view wx:if="{{item.quantity}}" class="stepper"><text class="step" data-id="{{item.id}}" bindtap="decreaseDish">−</text><text class="quantity">{{item.quantity}}</text><text class="step" data-id="{{item.id}}" bindtap="increaseDish">＋</text></view><view wx:else class="add-circle" data-id="{{item.id}}" bindtap="addDish">＋</view></view>
           </view>
-        </view>
-      </block>
+          </block>
+        </block>
+      </view>
     </view>
   </scroll-view>
 
@@ -59,6 +48,8 @@
     </block>
   </scroll-view>
 </view>
+
+<view class="bottom-nav"><view class="nav-item {{activeTab === 'menu' ? 'nav-active' : ''}}" data-tab="menu" bindtap="switchTab"><text>▦</text><label>菜谱</label></view><view class="nav-item {{activeTab === 'orders' ? 'nav-active' : ''}}" data-tab="orders" bindtap="switchTab"><text>▤</text><label>订单</label></view><view class="nav-item" data-tab="menu" bindtap="switchTab"><text>➤</text><label>发现</label></view><view class="nav-item {{activeTab === 'family' ? 'nav-active' : ''}}" data-tab="family" bindtap="switchTab"><text>♧</text><label>我的</label></view></view>
 
 <view wx:if="{{activeTab === 'menu' && basketCount}}" class="basket-bar"><view class="basket-summary" bindtap="openBasket"><view class="basket-badge">{{basketCount}}</view><view><text class="basket-label">已选菜品</text><text class="basket-total">{{basketTotal}} 份</text></view></view><button class="basket-button" bindtap="openOrder">去下单 <text>→</text></button></view>
 
