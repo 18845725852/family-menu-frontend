@@ -1,0 +1,69 @@
+<navigation-bar title="家宴菜单" back="{{false}}" color="#20302A" background="#F6F7F2"></navigation-bar>
+<view class="page-shell">
+  <view class="hero">
+    <view>
+      <text class="eyebrow">TODAY'S TABLE</text>
+      <view class="hero-title">今天吃什么，家人一起选</view>
+      <view class="hero-subtitle">把想吃的放进菜单，开饭前一起确认</view>
+    </view>
+    <view class="hero-mark">⌁</view>
+  </view>
+
+  <view class="tabs">
+    <view class="tab {{activeTab === 'menu' ? 'tab-active' : ''}}" data-tab="menu" bindtap="switchTab">点菜 <text wx:if="{{basketCount}}" class="tab-count">{{basketCount}}</text></view>
+    <view class="tab {{activeTab === 'orders' ? 'tab-active' : ''}}" data-tab="orders" bindtap="switchTab">订单 <text wx:if="{{orders.length}}" class="tab-count muted">{{orders.length}}</text></view>
+    <view class="tab {{activeTab === 'family' ? 'tab-active' : ''}}" data-tab="family" bindtap="switchTab">家庭</view>
+  </view>
+
+  <scroll-view wx:if="{{activeTab === 'menu'}}" class="content" scroll-y refresher-enabled="true" bindrefresherrefresh="onPullDownRefresh">
+    <view wx:if="{{error}}" class="error-banner">{{error}}</view>
+    <scroll-view class="category-list" scroll-x>
+      <view wx:for="{{categories}}" wx:key="id" class="category {{activeCategory === item.name ? 'category-active' : ''}}" data-category="{{item.name}}" bindtap="selectCategory">{{item.name}}</view>
+    </scroll-view>
+    <view wx:if="{{loading}}" class="empty-state"><text class="loading-dot">●</text><text>正在准备今日菜单</text></view>
+    <view wx:elif="{{!displayDishes.length}}" class="empty-state"><text class="empty-icon">⌂</text><text>还没有可供应的菜品</text></view>
+    <view wx:else class="dish-grid">
+      <block wx:for="{{displayDishes}}" wx:key="id">
+        <view class="dish-card">
+          <image class="dish-image" src="{{item.imageUrl || defaultDishUrl}}" mode="aspectFill" lazy-load="true"></image>
+          <view class="dish-info">
+            <view class="dish-name">{{item.name}}</view>
+            <view class="dish-category">{{item.category}}</view>
+            <view class="dish-action">
+              <view wx:if="{{item.quantity}}" class="stepper"><text class="step" data-id="{{item.id}}" bindtap="decreaseDish">−</text><text class="quantity">{{item.quantity}}</text><text class="step" data-id="{{item.id}}" bindtap="increaseDish">＋</text></view>
+              <button wx:else class="add-button" data-id="{{item.id}}" bindtap="addDish">加入菜单</button>
+            </view>
+          </view>
+        </view>
+      </block>
+    </view>
+  </scroll-view>
+
+  <scroll-view wx:if="{{activeTab === 'orders'}}" class="content" scroll-y>
+    <view class="section-heading"><view><text class="section-title">最近的点菜</text><text class="section-note">共 {{orders.length}} 单</text></view><text class="refresh" bindtap="loadOrders">刷新</text></view>
+    <view wx:if="{{!orders.length}}" class="empty-state"><text class="empty-icon">◷</text><text>还没有订单，先去选几道菜吧</text></view>
+    <view wx:for="{{orders}}" wx:key="id" class="order-card">
+      <view class="order-top"><view><text class="order-customer">{{item.customerName}}</text><text class="order-time">{{item.displayTime}}</text></view><text class="order-index">NO.{{item.id}}</text></view>
+      <view class="order-items">{{item.itemText}}</view>
+      <view wx:if="{{item.remark}}" class="order-remark">备注：{{item.remark}}</view>
+    </view>
+  </scroll-view>
+
+  <scroll-view wx:if="{{activeTab === 'family'}}" class="content" scroll-y>
+    <view wx:if="{{!family}}" class="family-intro"><text class="family-icon">⌂</text><text class="section-title">建立你的家庭菜单</text><text class="section-note">创建后，家人称呼会自动出现在点菜记录里</text><button class="primary-button" bindtap="openFamily">创建家庭</button></view>
+    <block wx:else>
+      <view class="family-header"><view><text class="eyebrow">FAMILY SPACE</text><view class="family-name">{{family.name}}</view></view><text class="family-id">ID {{family.id}}</text></view>
+      <view class="section-heading"><view><text class="section-title">家庭成员</text><text class="section-note">{{members.length}} 位成员</text></view><text class="refresh">已启用</text></view>
+      <view class="member-list"><view wx:for="{{members}}" wx:key="id" class="member-row"><view class="avatar">{{item.initial}}</view><view class="member-main"><text class="member-name">{{item.nickname}}</text><text class="member-role">{{item.role === 'OWNER' ? '家庭创建者' : '家庭成员'}}</text></view><text wx:if="{{item.role !== 'OWNER'}}" class="member-remove" data-id="{{item.id}}" bindtap="removeMember">移除</text></view></view>
+      <view class="add-member"><input class="member-input" placeholder="添加成员称呼" value="{{memberName}}" data-field="memberName" bindinput="input" maxlength="20"/><button class="small-button" bindtap="addMember">添加</button></view>
+    </block>
+  </scroll-view>
+</view>
+
+<view wx:if="{{activeTab === 'menu' && basketCount}}" class="basket-bar"><view class="basket-summary" bindtap="openBasket"><view class="basket-badge">{{basketCount}}</view><view><text class="basket-label">已选菜品</text><text class="basket-total">{{basketTotal}} 份</text></view></view><button class="basket-button" bindtap="openOrder">去下单 <text>→</text></button></view>
+
+<view wx:if="{{basketVisible}}" class="overlay" bindtap="closeBasket"><view class="sheet" catchtap="noop"><view class="sheet-head"><text class="sheet-title">已选菜单</text><text class="sheet-clear" bindtap="clearBasket">清空</text></view><view wx:for="{{basket}}" wx:key="dishId" class="basket-row"><view class="basket-dish">{{item.dishName}}</view><view class="stepper"><text class="step" data-id="{{item.dishId}}" bindtap="decreaseDish">−</text><text class="quantity">{{item.quantity}}</text><text class="step" data-id="{{item.dishId}}" bindtap="increaseDish">＋</text></view></view><button class="primary-button sheet-button" bindtap="openOrder">确认菜单</button></view></view>
+
+<view wx:if="{{orderVisible}}" class="overlay"><view class="sheet order-sheet"><view class="sheet-head"><text class="sheet-title">提交这桌菜</text><text class="sheet-close" bindtap="closeOrder">×</text></view><view class="form-label">点菜人</view><input class="form-input" placeholder="例如：妈妈" value="{{customerName}}" data-field="customerName" bindinput="input" maxlength="30"/><view class="form-label">开饭备注 <text class="optional">选填</text></view><textarea class="form-textarea" placeholder="例如：六点开饭、少油少盐" value="{{orderRemark}}" data-field="orderRemark" bindinput="input" maxlength="200"></textarea><view class="confirm-total">共 {{basketCount}} 份菜</view><button class="primary-button sheet-button" loading="{{submitting}}" bindtap="submitOrder">提交订单</button></view></view>
+
+<view wx:if="{{familyVisible}}" class="overlay"><view class="sheet"><view class="sheet-head"><text class="sheet-title">创建家庭</text><text class="sheet-close" bindtap="closeFamily">×</text></view><view class="form-label">家庭名称</view><input class="form-input" placeholder="例如：我们家" value="{{familyName}}" data-field="familyName" bindinput="input" maxlength="30"/><view class="form-label">你的称呼</view><input class="form-input" placeholder="例如：妈妈" value="{{ownerName}}" data-field="ownerName" bindinput="input" maxlength="20"/><button class="primary-button sheet-button" bindtap="createFamily">创建并进入</button></view></view>
