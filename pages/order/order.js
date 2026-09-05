@@ -17,27 +17,12 @@ function request(path, options) {
 }
 
 Page({
-  data: { basket: [], basketCount: 0, operatorName: '微信用户', operatorInitial: '微', members: [], memberNames: [], memberIndex: 0, customerName: '', remark: '', submitting: false },
+  data: { basket: [], basketCount: 0, operatorName: '微信用户', operatorInitial: '微', customerName: '', remark: '', submitting: false },
   onLoad() {
     const basket = app.globalData.pendingBasket || []
     const user = app.globalData.currentUser || {}
-    this.setData({ basket, basketCount: basket.reduce((sum, item) => sum + item.quantity, 0), operatorName: user.nickname || '微信用户', operatorInitial: (user.nickname || '微信用户').substring(0, 1) })
-    this.loadMembers()
-  },
-  loadMembers() {
-    if (!app.globalData.familyId) return
-    request('/api/families/' + app.globalData.familyId + '/members').then(members => {
-      const list = members || []
-      const userId = app.globalData.currentUser && app.globalData.currentUser.userId
-      let index = list.findIndex(member => Number(member.userId) === Number(userId))
-      if (index < 0) index = 0
-      this.setData({ members: list, memberNames: list.map(member => member.nickname), memberIndex: index, customerName: list[index] ? list[index].nickname : this.data.operatorName })
-    }).catch(() => this.setData({ memberNames: [this.data.operatorName], customerName: this.data.operatorName }))
-  },
-  selectMember(e) {
-    const index = Number(e.detail.value)
-    const member = this.data.members[index]
-    this.setData({ memberIndex: index, customerName: member ? member.nickname : this.data.operatorName })
+    const operatorName = user.nickname || '微信用户'
+    this.setData({ basket, basketCount: basket.reduce((sum, item) => sum + item.quantity, 0), operatorName, operatorInitial: operatorName.substring(0, 1), customerName: operatorName })
   },
   inputRemark(e) { this.setData({ remark: e.detail.value }) },
   changeQuantity(e) {
