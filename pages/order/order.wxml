@@ -1,3 +1,4 @@
+<scroll-view class="order-scroll" scroll-y>
 <view class="order-page">
   <view class="order-header"><view class="order-heading"><text class="back-button" bindtap="goBack">‹</text><view><text class="title">确认这桌菜</text><text class="subtitle">下单前再核对一下</text></view></view></view>
   <view class="user-card"><view class="avatar">{{operatorInitial}}</view><view><text class="user-label">当前登录人</text><text class="user-name">{{operatorName}}</text></view></view>
@@ -9,3 +10,4 @@
   <textarea class="remark" maxlength="200" placeholder="例如：六点开饭、少油少盐、不要香菜" value="{{remark}}" bindinput="inputRemark"></textarea>
   <button class="submit" loading="{{submitting}}" bindtap="submitOrder">提交订单</button>
 </view>
+</scroll-view>

@@ -40,6 +40,8 @@ Page({
     activeTab: 'menu',
     categories: [],
     activeCategory: '',
+    searchVisible: false,
+    searchKeyword: '',
     dishes: [],
     displayDishes: [],
     defaultDishUrl: '',
@@ -66,6 +68,8 @@ Page({
     loading: true,
     submitting: false,
     error: ''
+    ,previewImageVisible: false
+    ,previewImageUrl: ''
   },
 
   onLoad() {
@@ -116,7 +120,10 @@ Page({
     this.setData({ loading: true, error: '' })
     return Promise.all([request('/api/dish-categories'), request('/api/dishes')])
       .then(([categories, dishes]) => {
-        const list = categories || []
+        const list = (categories || []).map(category => {
+          const name = category.name || ''
+          return Object.assign({}, category, { line1: name.substring(0, 2), line2: name.substring(2) })
+        })
         const activeCategory = this.data.activeCategory || (list[0] && list[0].name) || ''
         const normalizedDishes = (dishes || []).map(dish => Object.assign({}, dish, { imageUrl: resolveMediaUrl(dish.imageUrl) }))
         this.setData({ categories: list, dishes: normalizedDishes, activeCategory: activeCategory }, this.refreshDisplayDishes)
@@ -132,7 +139,7 @@ Page({
       const list = (orders || []).map(order => {
         const displayTime = formatTime(order.createdAt)
         const dateLabel = displayTime ? displayTime.slice(0, 10) : '未知日期'
-        const item = Object.assign({}, order, { displayTime: displayTime, displayClock: displayTime.length >= 16 ? displayTime.substring(11, 16) : '', dateLabel: dateLabel, showDate: dateLabel !== previousDate, itemText: (order.items || []).map(item => item.dishName + ' × ' + item.quantity).join('、') })
+        const item = Object.assign({}, order, { displayTime: displayTime, displayClock: displayTime.length >= 16 ? displayTime.substring(11, 16) : '', dateLabel: dateLabel, showDate: dateLabel !== previousDate, itemText: (order.items || []).map(item => item.dishName + ' × ' + item.quantity).join('、'), displayItems: (order.items || []).map(orderItem => { const dish = this.data.dishes.find(d => Number(d.id) === Number(orderItem.dishId)); return Object.assign({}, orderItem, { imageUrl: dish ? dish.imageUrl : this.data.defaultDishUrl }) }) })
         previousDate = dateLabel
         return item
       })
@@ -180,15 +187,37 @@ Page({
   },
 
   switchTab(e) { this.setData({ activeTab: e.currentTarget.dataset.tab, basketVisible: false }) },
+  toggleSearch() {
+    const visible = !this.data.searchVisible
+    this.setData({ searchVisible: visible, searchKeyword: visible ? this.data.searchKeyword : '' }, this.refreshDisplayDishes)
+  },
+  inputSearch(e) {
+    this.setData({ searchKeyword: e.detail.value }, this.refreshDisplayDishes)
+  },
+  clearSearch() {
+    this.setData({ searchKeyword: '' }, this.refreshDisplayDishes)
+  },
   selectCategory(e) { this.setData({ activeCategory: e.currentTarget.dataset.category }, this.refreshDisplayDishes) },
   refreshDisplayDishes() {
     const quantities = {}
     this.data.basket.forEach(item => { quantities[item.dishId] = item.quantity })
     const category = this.data.activeCategory
-    this.setData({ displayDishes: this.data.dishes.filter(dish => !category || dish.category === category).map(dish => Object.assign({}, dish, { quantity: quantities[dish.id] || 0 })) })
+    const keyword = (this.data.searchKeyword || '').trim().toLowerCase()
+    const list = this.data.dishes.filter(dish => {
+      const matchesCategory = !category || dish.category === category
+      const matchesKeyword = !keyword || String(dish.name || '').toLowerCase().indexOf(keyword) >= 0
+      return matchesCategory && matchesKeyword
+    })
+    this.setData({ displayDishes: list.map(dish => Object.assign({}, dish, { quantity: quantities[dish.id] || 0 })) })
   },
 
   addDish(e) { this.changeDish(e.currentTarget.dataset.id, 1) },
+  previewDishImage(e) {
+    const url = e.currentTarget.dataset.image
+    if (!url) return
+    this.setData({ previewImageVisible: true, previewImageUrl: url })
+  },
+  closePreviewImage() { this.setData({ previewImageVisible: false, previewImageUrl: '' }) },
   increaseDish(e) { this.changeDish(e.currentTarget.dataset.id, 1) },
   decreaseDish(e) { this.changeDish(e.currentTarget.dataset.id, -1) },
   changeDish(id, delta) {
@@ -197,7 +226,7 @@ Page({
     if (!dish) return
     const basket = this.data.basket.slice()
     const index = basket.findIndex(item => Number(item.dishId) === Number(id))
-    if (index < 0 && delta > 0) basket.push({ dishId: dish.id, dishName: dish.name, quantity: 1, remark: '' })
+    if (index < 0 && delta > 0) basket.push({ dishId: dish.id, dishName: dish.name, imageUrl: dish.imageUrl, quantity: 1, remark: '' })
     else if (index >= 0) {
       basket[index].quantity += delta
       if (basket[index].quantity <= 0) basket.splice(index, 1)
