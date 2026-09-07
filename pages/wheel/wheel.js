@@ -152,6 +152,6 @@ Page({
     })
     setTimeout(() => {
       this.setData({ spinning: false, result: result, hasSpun: true })
-    }, 4500)
+    }, 5400)
   }
 })

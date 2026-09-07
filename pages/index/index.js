@@ -16,7 +16,9 @@ function request(path, options) {
         if (res.statusCode >= 200 && res.statusCode < 300 && body.success !== false) {
           resolve(body.data)
         } else {
-          reject(new Error(body.message || '请求失败'))
+          const error = new Error(body.message || (res.statusCode === 401 ? '登录已失效' : '请求失败'))
+          error.statusCode = res.statusCode
+          reject(error)
         }
       },
       fail() { reject(new Error('网络不可用，请确认后端服务已启动')) }
@@ -50,7 +52,6 @@ Page({
     basketTotal: 0,
     basketVisible: false,
     orderVisible: false,
-    customerName: '',
     orderRemark: '',
     orders: [],
     familyId: null,
@@ -61,10 +62,13 @@ Page({
     members: [],
     familyVisible: false,
     familyName: '',
-    ownerName: '',
     profileName: '',
     profileEditing: false,
     profileSaving: false,
+    loginVisible: false,
+    loginLoading: false,
+    loginError: '',
+    authReady: false,
     loading: true,
     submitting: false,
     error: ''
@@ -76,11 +80,11 @@ Page({
     const familyId = app.globalData.familyId
     this.setData({ familyId: familyId || null, defaultDishUrl: (app.globalData.apiBaseUrl || '') + '/default-dish.png', profileName: (app.globalData.currentUser && app.globalData.currentUser.nickname) || wx.getStorageSync('profileName') || '' })
     this.loadMenu()
-    this.loginWechat().then(() => {
-      this.loadFamilies()
-      this.loadOrders()
-      if (app.globalData.familyId) this.loadFamily(app.globalData.familyId)
-    })
+    if (app.globalData.sessionToken && app.globalData.currentUser) {
+      this.enterAfterLogin().catch(err => this.showLogin(err.message))
+    } else {
+      this.showLogin('')
+    }
   },
 
   onShow() {
@@ -93,12 +97,59 @@ Page({
       this.updateBasket(app.globalData.pendingBasket || [])
       app.globalData.orderEditing = false
     }
-    this.loadOrders()
+    if (this.data.authReady) this.loadOrders()
   },
 
-  loginWechat() {
+  clearLogin() {
+    app.globalData.sessionToken = null
+    app.globalData.currentUser = null
+    app.globalData.familyId = null
+    app.globalData.family = null
+    app.globalData.pendingBasket = []
+    app.globalData.orderEditing = false
+    app.globalData.orderSubmitted = false
+    wx.removeStorageSync('sessionToken')
+    wx.removeStorageSync('currentUser')
+    wx.removeStorageSync('familyId')
+    this.setData({
+      activeTab: 'menu',
+      familyId: null,
+      family: null,
+      families: [],
+      members: [],
+      orders: [],
+      profileName: '',
+      profileEditing: false,
+      familyVisible: false,
+      basketVisible: false
+    })
+    this.updateBasket([])
+  },
+
+  showLogin(message) {
+    this.setData({ loginVisible: true, loginLoading: false, loginError: message || '', authReady: false, error: '' })
+  },
+
+  beginLogin() {
+    if (this.data.loginLoading) return
+    this.setData({ loginLoading: true, loginError: '' })
+    this.loginWechat(true)
+      .then(() => this.enterAfterLogin())
+      .then(() => this.setData({ loginVisible: false, loginLoading: false, loginError: '' }))
+      .catch(err => this.showLogin(err.message || '微信登录失败，请稍后重试'))
+  },
+
+  enterAfterLogin() {
+    return this.loadFamilies().then(() => this.loadOrders()).then(() => {
+      this.setData({ authReady: true, error: '' })
+    })
+  },
+
+  loginWechat(force) {
+    if (force) this.clearLogin()
     if (app.globalData.sessionToken && app.globalData.currentUser) return Promise.resolve(app.globalData.currentUser)
-    return new Promise((resolve, reject) => wx.login({ success: login => {
+    if (this.loginPromise) return this.loginPromise
+    this.loginPromise = new Promise((resolve, reject) => wx.login({ success: login => {
       if (!login.code) return reject(new Error('微信登录失败'))
       request('/api/auth/wechat-login', { method: 'POST', data: { code: login.code, nickname: wx.getStorageSync('profileName') || '' } })
         .then(user => {
@@ -110,6 +161,18 @@ Page({
           resolve(user)
         }).catch(reject)
     }, fail: reject }))
+    return this.loginPromise.finally(() => { this.loginPromise = null })
+  },
+
+  authRequest(path, options) {
+    return this.loginWechat().then(() => request(path, options)).catch(err => {
+      if (err.statusCode === 401) {
+        this.clearLogin()
+        this.showLogin('登录状态已失效，请重新登录')
+        throw new Error('登录状态已失效，请重新登录')
+      }
+      throw err
+    })
   },
 
   onPullDownRefresh() {
@@ -134,7 +197,7 @@ Page({
 
   loadOrders() {
     if (!app.globalData.familyId) return Promise.resolve(this.setData({ orders: [] }))
-    return request('/api/families/' + app.globalData.familyId + '/orders').then(orders => {
+    return this.authRequest('/api/families/' + app.globalData.familyId + '/orders').then(orders => {
       let previousDate = ''
       const list = (orders || []).map(order => {
         const displayTime = formatTime(order.createdAt)
@@ -148,7 +211,7 @@ Page({
   },
 
   loadFamily(id) {
-    return Promise.all([request('/api/families/' + id), request('/api/families/' + id + '/members')])
+    return Promise.all([this.authRequest('/api/families/' + id), this.authRequest('/api/families/' + id + '/members')])
       .then(([family, members]) => this.setData({ family: family, members: (members || []).map(member => Object.assign({}, member, { initial: (member.nickname || '?').substring(0, 1) })) }))
       .catch(() => {
         app.globalData.familyId = null
@@ -157,27 +220,54 @@ Page({
       })
   },
   loadFamilies() {
-    return request('/api/families').then(families => {
+    return this.authRequest('/api/families').then(families => {
       const list = families || []
-      const currentId = app.globalData.familyId || (list[0] && list[0].id)
-      if (currentId && !app.globalData.familyId) { app.globalData.familyId = currentId; wx.setStorageSync('familyId', currentId) }
+      const storedId = Number(app.globalData.familyId)
+      const storedFamily = list.find(item => Number(item.id) === storedId)
+      const currentId = storedFamily ? storedFamily.id : (list[0] && list[0].id)
+      if (currentId) {
+        app.globalData.familyId = currentId
+        wx.setStorageSync('familyId', currentId)
+      } else {
+        app.globalData.familyId = null
+        wx.removeStorageSync('familyId')
+      }
       this.setData({ families: list, familyId: currentId || null })
       if (currentId) return this.loadFamily(currentId)
-    }).catch(err => this.setData({ error: err.message }))
+      this.setData({ family: null, members: [], orders: [] })
+    })
   },
   saveProfile() {
     const nickname = (this.data.profileName || '').trim()
     if (!nickname) return wx.showToast({ title: '请填写你的称呼', icon: 'none' })
     this.setData({ profileSaving: true })
-    request('/api/me/profile', { method: 'PUT', data: { nickname: nickname } }).then(user => {
+    this.authRequest('/api/me/profile', { method: 'PUT', data: { nickname: nickname } }).then(user => {
       app.globalData.currentUser = Object.assign({}, app.globalData.currentUser, { nickname: user.nickname })
       wx.setStorageSync('currentUser', app.globalData.currentUser)
       wx.setStorageSync('profileName', nickname)
-      return this.data.familyId ? this.loadFamily(this.data.familyId) : Promise.resolve()
+      return this.data.familyId
+        ? Promise.all([this.loadFamily(this.data.familyId), this.loadOrders()])
+        : Promise.resolve()
     }).then(() => { this.setData({ profileEditing: false }); wx.showToast({ title: '称呼已保存', icon: 'success' }) }).catch(err => wx.showToast({ title: err.message, icon: 'none' })).finally(() => this.setData({ profileSaving: false }))
   },
   editProfile() { this.setData({ profileEditing: true }) },
   cancelProfileEdit() { this.setData({ profileEditing: false, profileName: (app.globalData.currentUser && app.globalData.currentUser.nickname) || '' }) },
+  logout() {
+    wx.showModal({
+      title: '退出登录',
+      content: '退出后将无法查看家庭和订单，确定退出吗？',
+      confirmText: '退出',
+      confirmColor: '#b25f50',
+      success: res => {
+        if (!res.confirm) return
+        request('/api/auth/logout', { method: 'POST' }).catch(() => null).then(() => {
+          this.clearLogin()
+          this.showLogin('')
+          wx.showToast({ title: '已退出登录', icon: 'success' })
+        })
+      }
+    })
+  },
   switchFamily(e) {
     const id = Number(e.currentTarget.dataset.id)
     app.globalData.familyId = id
@@ -252,6 +342,17 @@ Page({
   clearBasket() { this.updateBasket([]); this.closeBasket() },
   openOrder() {
     if (!this.data.basket.length) return wx.showToast({ title: '购物篮还是空的', icon: 'none' })
+    if (!app.globalData.familyId) {
+      return wx.showModal({
+        title: '先建立家庭菜单',
+        content: '创建或加入家庭后才能下单，订单只会展示给同一家庭的成员。',
+        confirmText: '去创建',
+        cancelText: '继续浏览',
+        success: res => {
+          if (res.confirm) this.setData({ activeTab: 'family', familyVisible: true, basketVisible: false })
+        }
+      })
+    }
     app.globalData.pendingBasket = this.data.basket.map(item => Object.assign({}, item))
     app.globalData.orderEditing = true
     this.setData({ basketVisible: false })
@@ -260,13 +361,10 @@ Page({
   closeOrder() { this.setData({ orderVisible: false }) },
   input(e) { this.setData({ [e.currentTarget.dataset.field]: e.detail.value }) },
   submitOrder() {
-    const customerName = (this.data.customerName || '').trim()
-    if (!customerName) return wx.showToast({ title: '请填写点菜人', icon: 'none' })
-    this.setData({ submitting: true })
     if (!app.globalData.familyId) return wx.showToast({ title: '请先创建或加入家庭', icon: 'none' })
-    request('/api/families/' + app.globalData.familyId + '/orders', { method: 'POST', data: { customerName: customerName, items: this.data.basket, remark: this.data.orderRemark } })
+    this.setData({ submitting: true })
+    this.authRequest('/api/families/' + app.globalData.familyId + '/orders', { method: 'POST', data: { items: this.data.basket, remark: this.data.orderRemark } })
       .then(() => {
-        wx.setStorageSync('customerName', customerName)
         this.updateBasket([])
         this.setData({ orderVisible: false, activeTab: 'orders', orderRemark: '' })
         wx.showToast({ title: '订单已提交', icon: 'success' })
@@ -279,18 +377,17 @@ Page({
   closeFamily() { this.setData({ familyVisible: false }) },
   createFamily() {
     const name = (this.data.familyName || '').trim()
-    const ownerName = (this.data.ownerName || '').trim()
-    if (!name || !ownerName) return wx.showToast({ title: '请填写家庭名和称呼', icon: 'none' })
-    request('/api/families', { method: 'POST', data: { name: name, ownerName: ownerName } }).then(family => {
+    if (!name) return wx.showToast({ title: '请填写家庭名称', icon: 'none' })
+    this.authRequest('/api/families', { method: 'POST', data: { name: name } }).then(family => {
       app.globalData.familyId = family.id
       wx.setStorageSync('familyId', family.id)
-      this.setData({ familyId: family.id, familyName: '', ownerName: '', familyVisible: false })
+      this.setData({ familyId: family.id, familyName: '', familyVisible: false })
       return this.loadFamilies()
     }).then(() => wx.showToast({ title: '家庭已创建', icon: 'success' })).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
   },
   createInviteCode() {
     if (!this.data.familyId) return wx.showToast({ title: '请先创建家庭', icon: 'none' })
-    request('/api/families/' + this.data.familyId + '/invite-code', { method: 'POST' }).then(result => {
+    this.authRequest('/api/families/' + this.data.familyId + '/invite-code', { method: 'POST' }).then(result => {
       this.setData({ inviteCode: result.inviteCode })
       wx.setClipboardData({ data: result.inviteCode })
       wx.showToast({ title: '邀请码已复制', icon: 'success' })
@@ -299,7 +396,7 @@ Page({
   joinFamily() {
     const code = (this.data.joinCode || '').trim()
     if (!code) return wx.showToast({ title: '请输入邀请码', icon: 'none' })
-    request('/api/family-invitations/join', { method: 'POST', data: { inviteCode: code } }).then(family => {
+    this.authRequest('/api/family-invitations/join', { method: 'POST', data: { inviteCode: code } }).then(family => {
       app.globalData.familyId = family.id
       wx.setStorageSync('familyId', family.id)
       this.setData({ joinCode: '' })
@@ -310,7 +407,7 @@ Page({
     const memberId = e.currentTarget.dataset.id
     wx.showModal({ title: '移除成员', content: '确认移除这个家庭成员吗？', success: res => {
       if (!res.confirm) return
-      request('/api/families/' + this.data.familyId + '/members/' + memberId, { method: 'DELETE' }).then(() => this.loadFamily(this.data.familyId)).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
+      this.authRequest('/api/families/' + this.data.familyId + '/members/' + memberId, { method: 'DELETE' }).then(() => this.loadFamily(this.data.familyId)).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
     } })
   },
   dishImage(e) { e.detail && e.detail.errMsg && this.setData({}) }

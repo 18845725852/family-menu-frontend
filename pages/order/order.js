@@ -17,12 +17,21 @@ function request(path, options) {
 }
 
 Page({
-  data: { basket: [], basketCount: 0, operatorName: '微信用户', operatorInitial: '微', customerName: '', remark: '', submitting: false },
+  data: { basket: [], basketCount: 0, operatorName: '微信用户', operatorInitial: '微', remark: '', submitting: false },
   onLoad() {
+    if (!app.globalData.familyId) {
+      wx.showModal({
+        title: '暂时不能下单',
+        content: '请先创建或加入家庭，之后才能提交和查看家庭订单。',
+        showCancel: false,
+        success: () => wx.navigateBack({ delta: 1 })
+      })
+      return
+    }
     const basket = app.globalData.pendingBasket || []
     const user = app.globalData.currentUser || {}
     const operatorName = user.nickname || '微信用户'
-    this.setData({ basket, basketCount: basket.reduce((sum, item) => sum + item.quantity, 0), operatorName, operatorInitial: operatorName.substring(0, 1), customerName: operatorName })
+    this.setData({ basket, basketCount: basket.reduce((sum, item) => sum + item.quantity, 0), operatorName, operatorInitial: operatorName.substring(0, 1) })
   },
   inputRemark(e) { this.setData({ remark: e.detail.value }) },
   changeQuantity(e) {
@@ -43,7 +52,7 @@ Page({
     if (!this.data.basket.length) return wx.showToast({ title: '还没有选择菜品', icon: 'none' })
     if (!app.globalData.familyId) return wx.showToast({ title: '请先创建或加入家庭', icon: 'none' })
     this.setData({ submitting: true })
-    request('/api/families/' + app.globalData.familyId + '/orders', { method: 'POST', data: { customerName: this.data.customerName || this.data.operatorName, items: this.data.basket, remark: this.data.remark } })
+    request('/api/families/' + app.globalData.familyId + '/orders', { method: 'POST', data: { items: this.data.basket, remark: this.data.remark } })
       .then(() => {
         app.globalData.pendingBasket = []
         app.globalData.orderEditing = false
