@@ -187,6 +187,7 @@ Page({
   },
 
   switchTab(e) { this.setData({ activeTab: e.currentTarget.dataset.tab, basketVisible: false }) },
+  goWheel() { wx.navigateTo({ url: '/pages/wheel/wheel' }) },
   toggleSearch() {
     const visible = !this.data.searchVisible
     this.setData({ searchVisible: visible, searchKeyword: visible ? this.data.searchKeyword : '' }, this.refreshDisplayDishes)

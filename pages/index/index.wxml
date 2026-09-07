@@ -2,10 +2,10 @@
   <view class="hero">
     <view class="hero-avatar">饭</view>
     <view class="hero-copy"><view class="hero-title">干饭人！干饭魂！</view><view class="hero-subtitle">干饭都是人上人！</view></view>
-    <view class="hero-actions"><view class="hero-icon" bindtap="openFamily">☰</view></view>
   </view>
 
   <view wx:if="{{activeTab === 'menu'}}" class="content menu-content">
+    <view class="wheel-banner" bindtap="goWheel"><view><text class="wheel-banner-title">今晚吃什么</text><text class="wheel-banner-subtitle">把转盘交给概率，省掉来回纠结</text></view><view class="wheel-banner-action">去转盘</view></view>
     <view class="menu-search-row"><view class="menu-search-field"><image class="menu-search-icon" src="/assets/search.svg" mode="aspectFit"/><input class="menu-search-input" placeholder="" value="{{searchKeyword}}" bindinput="inputSearch" confirm-type="search"/><text class="search-clear" style="margin-right:22rpx" wx:if="{{searchKeyword}}" bindtap="clearSearch">清空</text></view></view>
     <view class="menu-layout">
       <view class="category-list">
@@ -32,7 +32,7 @@
   </view>
 
   <scroll-view wx:if="{{activeTab === 'orders'}}" class="content order-content" scroll-y>
-    <view class="section-heading"><view><text class="section-title">最近的点菜</text><text class="section-note">共 {{orders.length}} 单</text></view><view><text class="back-menu" data-tab="menu" bindtap="switchTab">返回菜谱</text></view></view>
+    <view class="section-heading"><view><text class="section-title">最近的点菜</text><text class="section-note">共 {{orders.length}} 单</text></view><view class="back-menu" data-tab="menu" bindtap="switchTab"><text class="back-menu-icon">‹</text><text>返回菜谱</text></view></view>
     <view wx:if="{{!orders.length}}" class="empty-state"><text class="empty-icon">◷</text><text>还没有订单，先去选几道菜吧</text></view>
     <block wx:for="{{orders}}" wx:key="id">
       <view wx:if="{{item.showDate}}" class="order-date"><text class="date-clock">◷</text><text>{{item.dateLabel}}</text></view>

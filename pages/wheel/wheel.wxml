@@ -1,0 +1,50 @@
+<view class="page">
+  <view class="topbar">
+    <view>
+      <view class="title">外出吃什么</view>
+      <view class="subtitle">别纠结了，让命运替你点单</view>
+    </view>
+    <view class="back-btn" bindtap="goBack"><text class="back-icon">‹</text><text>返回菜谱</text></view>
+  </view>
+
+  <view class="stage">
+    <view class="wheel-frame" bindtap="spinWheel">
+      <view class="wheel-spin">
+        <image class="wheel-image" src="{{wheelSvg}}" mode="aspectFit"></image>
+        <view class="wheel-label-layer">
+          <view wx:for="{{labels}}" wx:key="id" class="wheel-label" style="left:{{item.left}}rpx; top:{{item.top}}rpx; width:{{item.width}}rpx; font-size:{{item.fontSize}}rpx;">
+            <block wx:for="{{item.lines}}" wx:for-item="line" wx:key="*this">
+              <text class="wheel-label-line">{{line}}</text>
+            </block>
+          </view>
+        </view>
+      </view>
+      <view class="wheel-pointer" style="transform: rotate({{pointerRotation}}deg);">
+        <view class="pointer-shaft"></view>
+        <view class="pointer-head"></view>
+      </view>
+      <view class="wheel-center">
+        <view class="spin-button {{spinning ? 'disabled' : ''}}">抽</view>
+      </view>
+    </view>
+
+    <view wx:if="{{hasSpun}}" class="result-card">
+      <view class="result-label">本次推荐</view>
+      <view wx:if="{{result}}" class="result-name">{{result.name}}</view>
+      <view wx:else class="result-pending">命运正在转动…</view>
+    </view>
+
+    <view wx:if="{{loading}}" class="status-text">正在读取餐厅名单…</view>
+    <view wx:elif="{{error}}" class="status-text error">{{error}}</view>
+  </view>
+
+  <view class="panel">
+    <view class="panel-head">
+      <view class="panel-title">可选餐厅</view>
+      <view class="panel-note">{{restaurants.length}} 家</view>
+    </view>
+    <view class="chip-wrap">
+      <view wx:for="{{restaurants}}" wx:for-item="item" wx:key="id" class="chip">{{item.name}}</view>
+    </view>
+  </view>
+</view>
