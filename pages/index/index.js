@@ -22,7 +22,11 @@ function request(path, options) {
           reject(error)
         }
       },
-      fail() { reject(new Error('网络不可用，请确认后端服务已启动')) }
+      fail(err) {
+        const message = err && err.errMsg ? err.errMsg : '网络不可用，请确认后端服务已启动'
+        console.error('[request failed]', path, message)
+        reject(new Error(message))
+      }
     })
   })
 }

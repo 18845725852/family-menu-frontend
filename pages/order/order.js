@@ -12,7 +12,7 @@ function request(path, options) {
       if (res.statusCode >= 200 && res.statusCode < 300 && body.success !== false) resolve(body.data)
       else reject(new Error(body.message || '请求失败'))
     },
-    fail: () => reject(new Error('网络不可用，请确认后端服务已启动'))
+    fail: err => reject(new Error(err && err.errMsg ? err.errMsg : '网络不可用，请确认后端服务已启动'))
   }))
 }
 
