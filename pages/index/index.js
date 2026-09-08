@@ -16,7 +16,8 @@ function request(path, options) {
         if (res.statusCode >= 200 && res.statusCode < 300 && body.success !== false) {
           resolve(body.data)
         } else {
-          const error = new Error(body.message || (res.statusCode === 401 ? '登录已失效' : '请求失败'))
+          const detail = body.data && body.data.message
+          const error = new Error(body.message || detail || (res.statusCode === 401 ? '登录已失效' : '请求失败'))
           error.statusCode = res.statusCode
           reject(error)
         }
