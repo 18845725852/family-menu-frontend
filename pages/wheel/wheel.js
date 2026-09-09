@@ -7,6 +7,9 @@ function request(path, options) {
       url: (app.globalData.apiBaseUrl || '') + path,
       method: options.method || 'GET',
       data: options.data,
+      timeout: 15000,
+      enableHttp2: false,
+      enableQuic: false,
       header: Object.assign({
         'content-type': 'application/json'
       }, app.globalData.sessionToken ? { Authorization: 'Bearer ' + app.globalData.sessionToken } : {}),

@@ -7,6 +7,9 @@ function request(path, options) {
       url: (app.globalData.apiBaseUrl || '') + path,
       method: options.method || 'GET',
       data: options.data,
+      timeout: 15000,
+      enableHttp2: false,
+      enableQuic: false,
       header: Object.assign({
         'content-type': 'application/json',
         ...(app.globalData.sessionToken ? { Authorization: 'Bearer ' + app.globalData.sessionToken } : {})
@@ -24,7 +27,7 @@ function request(path, options) {
       },
       fail(err) {
         const message = err && err.errMsg ? err.errMsg : '网络不可用，请确认后端服务已启动'
-        console.error('[request failed]', path, message)
+        console.error('[request failed]', path, message, err.errno)
         reject(new Error(message))
       }
     })
@@ -154,10 +157,24 @@ Page({
     if (force) this.clearLogin()
     if (app.globalData.sessionToken && app.globalData.currentUser) return Promise.resolve(app.globalData.currentUser)
     if (this.loginPromise) return this.loginPromise
-    this.loginPromise = new Promise((resolve, reject) => wx.login({ success: login => {
-      if (!login.code) return reject(new Error('微信登录失败'))
-      request('/api/auth/wechat-login', { method: 'POST', data: { code: login.code, nickname: wx.getStorageSync('profileName') || '' } })
-        .then(user => {
+    this.loginPromise = new Promise((resolve, reject) => wx.login({
+      success: login => {
+        console.log('[wx.login success]', login)
+        if (!login.code) return reject(new Error('微信登录未返回 code'))
+
+        const loginUrl = (app.globalData.apiBaseUrl || '') + '/api/auth/wechat-login'
+        console.log('[wechat-login request]', {
+          url: loginUrl,
+          codeLength: login.code.length
+        })
+
+        request('/api/auth/wechat-login', {
+          method: 'POST',
+          data: {
+            code: login.code,
+            nickname: wx.getStorageSync('profileName') || ''
+          }
+        }).then(user => {
           app.globalData.sessionToken = user.token
           app.globalData.currentUser = user
           this.setData({ profileName: user.nickname || '' })
@@ -165,7 +182,12 @@ Page({
           wx.setStorageSync('currentUser', user)
           resolve(user)
         }).catch(reject)
-    }, fail: reject }))
+      },
+      fail: err => {
+        console.error('[wx.login fail]', err)
+        reject(new Error((err && err.errMsg) || 'wx.login 调用失败'))
+      }
+    }))
     return this.loginPromise.finally(() => { this.loginPromise = null })
   },
 
