@@ -91,6 +91,20 @@ Page({
     this.loadRestaurants()
   },
 
+  onShareAppMessage() {
+    return {
+      title: '不想做饭？转盘帮你决定吃什么',
+      path: '/pages/wheel/wheel'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '不想做饭？转盘帮你决定吃什么',
+      query: ''
+    }
+  },
+
   loadRestaurants() {
     this.setData({ loading: true, error: '' })
     return request('/api/restaurants').then(restaurants => {

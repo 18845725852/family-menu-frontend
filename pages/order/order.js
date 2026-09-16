@@ -36,6 +36,18 @@ Page({
     const operatorName = user.nickname || '微信用户'
     this.setData({ basket, basketCount: basket.reduce((sum, item) => sum + item.quantity, 0), operatorName, operatorInitial: operatorName.substring(0, 1) })
   },
+  onShareAppMessage() {
+    return {
+      title: '一起看看今晚吃什么',
+      path: '/pages/index/index'
+    }
+  },
+  onShareTimeline() {
+    return {
+      title: '一起看看今晚吃什么',
+      query: ''
+    }
+  },
   inputRemark(e) { this.setData({ remark: e.detail.value }) },
   changeQuantity(e) {
     const id = Number(e.currentTarget.dataset.id)

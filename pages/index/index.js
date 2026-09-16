@@ -95,6 +95,20 @@ Page({
     }
   },
 
+  onShareAppMessage() {
+    return {
+      title: '今晚吃什么？一起选菜吧',
+      path: '/pages/index/index'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '今晚吃什么？一起选菜吧',
+      query: ''
+    }
+  },
+
   onShow() {
     if (app.globalData.orderSubmitted) {
       app.globalData.orderSubmitted = false
