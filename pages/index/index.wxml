@@ -9,23 +9,26 @@
     <view class="menu-search-row"><view class="menu-search-field"><image class="menu-search-icon" src="/assets/search.svg" mode="aspectFit"/><input class="menu-search-input" placeholder="" value="{{searchKeyword}}" bindinput="inputSearch" confirm-type="search"/><text class="search-clear" style="margin-right:22rpx" wx:if="{{searchKeyword}}" bindtap="clearSearch">清空</text></view></view>
     <view class="menu-layout">
       <view class="category-list">
-        <view wx:for="{{categories}}" wx:key="id" class="category {{activeCategory === item.name ? 'category-active' : ''}}" data-category="{{item.name}}" catchtap="selectCategory"><view class="category-label"><view>{{item.line1}}</view><view wx:if="{{item.line2}}">{{item.line2}}</view></view></view>
+        <view wx:for="{{categories}}" wx:key="id" class="category {{activeCategory === item.name ? 'category-active' : ''}}" data-id="{{item.id}}" data-category="{{item.name}}" catchtap="selectCategory"><view class="category-label"><view>{{item.line1}}</view><view wx:if="{{item.line2}}">{{item.line2}}</view></view></view>
       </view>
-      <scroll-view class="dish-scroll" scroll-y refresher-enabled="true" bindrefresherrefresh="onPullDownRefresh">
+      <scroll-view class="dish-scroll" scroll-y scroll-into-view="{{scrollIntoView}}" scroll-with-animation="true" bindscroll="onDishScroll" refresher-enabled="true" bindrefresherrefresh="onPullDownRefresh">
         <view wx:if="{{error}}" class="error-banner">{{error}}</view>
         <view class="dish-panel">
-        <view class="dish-heading"><text>{{activeCategory || '全部菜品'}}</text><text class="dish-count">{{displayDishes.length}} 道</text></view>
         <view wx:if="{{loading}}" class="empty-state"><text class="loading-dot">●</text><text>正在准备今日菜单</text></view>
         <view wx:elif="{{!displayDishes.length}}" class="empty-state"><text class="empty-icon">⌂</text><text>还没有可供应的菜品</text></view>
         <block wx:else>
-          <block wx:for="{{displayDishes}}" wx:key="id">
+          <view wx:for="{{dishSections}}" wx:for-item="section" wx:key="id" id="dish-section-{{section.id}}" class="dish-section">
+          <view class="dish-heading"><text>{{section.name}}</text><text class="dish-count">{{section.dishes.length}} 道</text></view>
+          <block wx:for="{{section.dishes}}" wx:for-item="item" wx:key="id">
           <view class="dish-card" style="display:flex;align-items:center;min-height:150rpx;margin:0;padding:14rpx 0;border:0;border-bottom:1rpx solid #f0f2f0;box-shadow:none">
-            <image class="dish-image" style="flex:none;width:142rpx;height:142rpx;border-radius:20rpx" src="{{item.imageUrl || defaultDishUrl}}" mode="aspectFill" lazy-load="true" data-image="{{item.imageUrl || defaultDishUrl}}" catchtap="previewDishImage"></image>
+            <image class="dish-image" style="flex:none;width:142rpx;height:142rpx;border-radius:20rpx" src="{{item.imageUrl || defaultDishUrl}}" mode="aspectFill" lazy-load="true" fade-show="true" data-image="{{item.imageUrl || defaultDishUrl}}" catchtap="previewDishImage"></image>
             <view class="dish-info" style="flex:1;min-width:0;padding:0 14rpx"><view class="dish-name">{{item.name}}</view><view class="dish-category dish-description">{{item.description}}</view><view class="dish-rating">★★★★★</view></view>
             <view class="dish-action" style="flex:none;margin:0;min-height:0"><view wx:if="{{item.quantity}}" class="stepper"><text class="step" data-id="{{item.id}}" catchtap="decreaseDish">−</text><text class="quantity">{{item.quantity}}</text><text class="step" data-id="{{item.id}}" catchtap="increaseDish">＋</text></view><view wx:else class="add-circle" data-id="{{item.id}}" catchtap="addDish">＋</view></view>
           </view>
           </block>
+          </view>
         </block>
+        <view wx:if="{{basketCount}}" class="basket-safe-space"></view>
         </view>
       </scroll-view>
     </view>
@@ -74,9 +77,10 @@
   <view class="login-card">
     <view class="login-logo">饭</view>
     <view class="login-title">欢迎来点菜</view>
-    <view class="login-subtitle">登录后可以创建家庭、邀请家人，一起记录每一顿饭</view>
+    <view class="login-subtitle">{{loginPurpose}}</view>
     <view wx:if="{{loginError}}" class="login-error">{{loginError}}</view>
     <button class="login-button" loading="{{loginLoading}}" disabled="{{loginLoading}}" bindtap="beginLogin">{{loginLoading ? '正在登录…' : '微信登录并进入'}}</button>
+    <view class="login-skip" bindtap="closeLogin">继续逛逛</view>
     <view class="login-tip">仅使用微信身份识别你的家庭和点菜记录</view>
   </view>
 </view>
