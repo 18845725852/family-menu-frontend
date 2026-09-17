@@ -158,7 +158,7 @@ Page({
     const currentAngle = ((current % 360) + 360) % 360
     const desiredAngle = ((desired % 360) + 360) % 360
     const delta = (desiredAngle - currentAngle + 360) % 360
-    const turns = 7 + Math.floor(Math.random() * 3)
+    const turns = 11 + Math.floor(Math.random() * 3)
     const nextRotation = current + turns * 360 + delta
     const result = this.data.restaurants[chosenIndex]
     this.setData({
@@ -169,6 +169,6 @@ Page({
     })
     setTimeout(() => {
       this.setData({ spinning: false, result: result, hasSpun: true })
-    }, 9000)
+    }, 10700)
   }
 })

@@ -34,7 +34,7 @@ Page({
     const basket = app.globalData.pendingBasket || []
     const user = app.globalData.currentUser || {}
     const operatorName = user.nickname || '微信用户'
-    this.setData({ basket, basketCount: basket.reduce((sum, item) => sum + item.quantity, 0), operatorName, operatorInitial: operatorName.substring(0, 1) })
+    this.setData({ basket, basketCount: basket.length, operatorName, operatorInitial: operatorName.substring(0, 1) })
   },
   onShareAppMessage() {
     return {
@@ -58,7 +58,7 @@ Page({
     item.quantity += delta
     const next = basket.filter(row => row.quantity > 0)
     app.globalData.pendingBasket = next
-    this.setData({ basket: next, basketCount: next.reduce((sum, row) => sum + row.quantity, 0) })
+    this.setData({ basket: next, basketCount: next.length })
   },
   goBack() {
     wx.navigateBack({ delta: 1 })

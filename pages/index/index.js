@@ -79,19 +79,30 @@ Page({
     loginLoading: false,
     loginError: '',
     loginPurpose: '登录后可以查看家庭订单、管理家庭并提交菜单',
+    loggedIn: false,
     authReady: false,
     loading: true,
     submitting: false,
-    error: ''
-    ,previewImageVisible: false
-    ,previewImageUrl: ''
+    error: '',
+    previewImageVisible: false,
+    previewImageUrl: '',
+    headerTop: 98
   },
 
   onLoad() {
     const familyId = app.globalData.familyId
-    this.setData({ familyId: familyId || null, defaultDishUrl: (app.globalData.apiBaseUrl || '') + '/default-dish.png', profileName: (app.globalData.currentUser && app.globalData.currentUser.nickname) || wx.getStorageSync('profileName') || '' })
+    const loggedIn = this.isLoggedIn()
+    const navMetrics = app.getNavMetrics ? app.getNavMetrics() : app.globalData.navMetrics
+    const headerTop = (navMetrics && navMetrics.headerTop) || this.data.headerTop
+    this.setData({
+      familyId: familyId || null,
+      loggedIn: loggedIn,
+      headerTop: headerTop,
+      defaultDishUrl: (app.globalData.apiBaseUrl || '') + '/default-dish.png',
+      profileName: (app.globalData.currentUser && app.globalData.currentUser.nickname) || wx.getStorageSync('profileName') || ''
+    })
     this.loadMenu()
-    if (app.globalData.sessionToken && app.globalData.currentUser) {
+    if (loggedIn) {
       this.enterAfterLogin().catch(() => this.clearLogin())
     }
   },
@@ -144,7 +155,11 @@ Page({
       profileName: '',
       profileEditing: false,
       familyVisible: false,
-      basketVisible: false
+      basketVisible: false,
+      loggedIn: false,
+      authReady: false,
+      loginLoading: false,
+      loginError: ''
     })
     this.updateBasket([])
   },
@@ -187,8 +202,16 @@ Page({
 
   enterAfterLogin() {
     return this.loadFamilies().then(() => this.loadOrders()).then(() => {
-      this.setData({ authReady: true, error: '' })
+      this.setData({ authReady: true, loggedIn: true, error: '' })
     })
+  },
+
+  isLoggedIn() {
+    return !!(app.globalData.sessionToken && app.globalData.currentUser)
+  },
+
+  goLogin() {
+    this.setData({ activeTab: 'family', basketVisible: false, loginError: '' })
   },
 
   loginWechat(force) {
@@ -241,7 +264,9 @@ Page({
   },
 
   onPullDownRefresh() {
-    Promise.all([this.loadMenu(), this.loadOrders()]).finally(() => wx.stopPullDownRefresh())
+    const tasks = [this.loadMenu()]
+    if (this.isLoggedIn()) tasks.push(this.loadOrders())
+    Promise.all(tasks).finally(() => wx.stopPullDownRefresh())
   },
 
   loadMenu() {
@@ -261,7 +286,7 @@ Page({
   },
 
   loadOrders() {
-    if (!app.globalData.familyId) return Promise.resolve(this.setData({ orders: [] }))
+    if (!this.isLoggedIn() || !app.globalData.familyId) return Promise.resolve(this.setData({ orders: [] }))
     return this.authRequest('/api/families/' + app.globalData.familyId + '/orders').then(orders => {
       let previousDate = ''
       const list = (orders || []).map(order => {
@@ -343,10 +368,6 @@ Page({
 
   switchTab(e) {
     const tab = e.currentTarget.dataset.tab
-    if (tab !== 'menu' && (!app.globalData.sessionToken || !app.globalData.currentUser)) {
-      const purpose = tab === 'orders' ? '登录后才能查看你所在家庭的点菜记录' : '登录后才能创建、加入和管理家庭'
-      return this.showLogin('', purpose, tab)
-    }
     this.setData({ activeTab: tab, basketVisible: false })
   },
   goWheel() { wx.navigateTo({ url: '/pages/wheel/wheel' }) },
@@ -436,7 +457,7 @@ Page({
     this.updateBasket(basket)
   },
   updateBasket(basket) {
-    this.setData({ basket: basket, basketCount: basket.reduce((n, item) => n + item.quantity, 0), basketTotal: basket.reduce((n, item) => n + item.quantity, 0) }, this.refreshDisplayDishes)
+    this.setData({ basket: basket, basketCount: basket.length, basketTotal: basket.length }, this.refreshDisplayDishes)
   },
   openBasket() {
     const selected = this.data.dishes.filter(dish => dish.quantity > 0).map(dish => ({
@@ -447,13 +468,13 @@ Page({
     }))
     const basket = selected.length ? selected : this.data.basket
     if (!basket.length) return wx.showToast({ title: '先选几道菜吧', icon: 'none' })
-    this.setData({ basket: basket, basketCount: basket.reduce((n, item) => n + item.quantity, 0), basketTotal: basket.reduce((n, item) => n + item.quantity, 0), basketVisible: true })
+    this.setData({ basket: basket, basketCount: basket.length, basketTotal: basket.length, basketVisible: true })
   },
   closeBasket() { this.setData({ basketVisible: false }) },
   clearBasket() { this.updateBasket([]); this.closeBasket() },
   openOrder() {
     if (!this.data.basket.length) return wx.showToast({ title: '购物篮还是空的', icon: 'none' })
-    if (!app.globalData.sessionToken || !app.globalData.currentUser) {
+    if (!this.isLoggedIn()) {
       return this.showLogin('', '登录后才能把已选菜品提交给你的家庭', 'order')
     }
     this.continueOpenOrder()
