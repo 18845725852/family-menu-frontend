@@ -5,8 +5,11 @@
     "pages/order/order"
   ],
   "window": {
-    "navigationBarTextStyle": "black",
-    "navigationStyle": "custom"
+    "navigationBarTextStyle": "white",
+    "navigationStyle": "custom",
+    "backgroundColor": "#1b2230",
+    "backgroundColorTop": "#1b2230",
+    "backgroundColorBottom": "#1b2230"
   },
   "style": "v2",
   "renderer": "skyline",

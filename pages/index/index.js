@@ -70,6 +70,8 @@ Page({
     families: [],
     inviteCode: '',
     joinCode: '',
+    joinPreview: null,
+    joinLooking: false,
     members: [],
     familyVisible: false,
     familyName: '',
@@ -87,7 +89,10 @@ Page({
     error: '',
     previewImageVisible: false,
     previewImageUrl: '',
-    headerTop: 98
+    headerTop: 98,
+    profileAvatarUrl: '',
+    defaultAvatarUrl: '/assets/default-avatar.jpg',
+    avatarSaving: false
   },
 
   onLoad() {
@@ -100,7 +105,8 @@ Page({
       loggedIn: loggedIn,
       headerTop: headerTop,
       defaultDishUrl: (app.globalData.apiBaseUrl || '') + '/default-dish.png',
-      profileName: (app.globalData.currentUser && app.globalData.currentUser.nickname) || wx.getStorageSync('profileName') || ''
+      profileName: (app.globalData.currentUser && app.globalData.currentUser.nickname) || wx.getStorageSync('profileName') || '',
+      profileAvatarUrl: resolveMediaUrl((app.globalData.currentUser && app.globalData.currentUser.avatarUrl) || '')
     })
     this.loadMenu()
     if (loggedIn) {
@@ -146,6 +152,7 @@ Page({
     wx.removeStorageSync('sessionToken')
     wx.removeStorageSync('currentUser')
     wx.removeStorageSync('familyId')
+    this.inviteCodes = {}
     this.setData({
       activeTab: 'menu',
       familyId: null,
@@ -154,9 +161,11 @@ Page({
       members: [],
       orders: [],
       profileName: '',
+      profileAvatarUrl: '',
       profileEditing: false,
       familyVisible: false,
       basketVisible: false,
+      inviteCode: '',
       loggedIn: false,
       authReady: false,
       loginLoading: false,
@@ -239,7 +248,10 @@ Page({
         }).then(user => {
           app.globalData.sessionToken = user.token
           app.globalData.currentUser = user
-          this.setData({ profileName: user.nickname || '' })
+          this.setData({
+            profileName: user.nickname || '',
+            profileAvatarUrl: resolveMediaUrl(user.avatarUrl || '')
+          })
           wx.setStorageSync('sessionToken', user.token)
           wx.setStorageSync('currentUser', user)
           resolve(user)
@@ -293,7 +305,7 @@ Page({
       const list = (orders || []).map(order => {
         const displayTime = formatTime(order.createdAt)
         const dateLabel = displayTime ? displayTime.slice(0, 10) : '未知日期'
-        const item = Object.assign({}, order, { displayTime: displayTime, displayClock: displayTime.length >= 16 ? displayTime.substring(11, 16) : '', dateLabel: dateLabel, showDate: dateLabel !== previousDate, itemText: (order.items || []).map(item => item.dishName + ' × ' + item.quantity).join('、'), displayItems: (order.items || []).map(orderItem => { const dish = this.data.dishes.find(d => Number(d.id) === Number(orderItem.dishId)); return Object.assign({}, orderItem, { imageUrl: dish ? dish.imageUrl : this.data.defaultDishUrl }) }) })
+        const item = Object.assign({}, order, { displayTime: displayTime, displayClock: displayTime.length >= 16 ? displayTime.substring(11, 16) : '', dateLabel: dateLabel, showDate: dateLabel !== previousDate, customerAvatarUrl: resolveMediaUrl(order.customerAvatarUrl || ''), itemText: (order.items || []).map(item => item.dishName + ' × ' + item.quantity).join('、'), displayItems: (order.items || []).map(orderItem => { const dish = this.data.dishes.find(d => Number(d.id) === Number(orderItem.dishId)); return Object.assign({}, orderItem, { imageUrl: dish ? dish.imageUrl : this.data.defaultDishUrl }) }) })
         previousDate = dateLabel
         return item
       })
@@ -303,11 +315,18 @@ Page({
 
   loadFamily(id) {
     return Promise.all([this.authRequest('/api/families/' + id), this.authRequest('/api/families/' + id + '/members')])
-      .then(([family, members]) => this.setData({ family: family, members: (members || []).map(member => Object.assign({}, member, { initial: (member.nickname || '?').substring(0, 1) })) }))
+      .then(([family, members]) => this.setData({
+        family: family,
+        members: (members || []).map(member => Object.assign({}, member, {
+          initial: (member.nickname || '?').substring(0, 1),
+          avatarUrl: resolveMediaUrl(member.avatarUrl || '')
+        })),
+        inviteCode: (this.inviteCodes && this.inviteCodes[id]) || ''
+      }))
       .catch(() => {
         app.globalData.familyId = null
         wx.removeStorageSync('familyId')
-        this.setData({ familyId: null, family: null, members: [] })
+        this.setData({ familyId: null, family: null, members: [], inviteCode: '' })
       })
   },
   loadFamilies() {
@@ -325,7 +344,7 @@ Page({
       }
       this.setData({ families: list, familyId: currentId || null })
       if (currentId) return this.loadFamily(currentId)
-      this.setData({ family: null, members: [], orders: [] })
+      this.setData({ family: null, members: [], orders: [], inviteCode: '' })
     })
   },
   saveProfile() {
@@ -333,7 +352,7 @@ Page({
     if (!nickname) return wx.showToast({ title: '请填写你的称呼', icon: 'none' })
     this.setData({ profileSaving: true })
     this.authRequest('/api/me/profile', { method: 'PUT', data: { nickname: nickname } }).then(user => {
-      app.globalData.currentUser = Object.assign({}, app.globalData.currentUser, { nickname: user.nickname })
+      app.globalData.currentUser = Object.assign({}, app.globalData.currentUser, { nickname: user.nickname, avatarUrl: user.avatarUrl || (app.globalData.currentUser && app.globalData.currentUser.avatarUrl) || '' })
       wx.setStorageSync('currentUser', app.globalData.currentUser)
       wx.setStorageSync('profileName', nickname)
       return this.data.familyId
@@ -343,6 +362,52 @@ Page({
   },
   editProfile() { this.setData({ profileEditing: true }) },
   cancelProfileEdit() { this.setData({ profileEditing: false, profileName: (app.globalData.currentUser && app.globalData.currentUser.nickname) || '' }) },
+  onChooseAvatar(e) {
+    const tempPath = e.detail && e.detail.avatarUrl
+    if (!tempPath) return
+    if (!this.isLoggedIn()) {
+      return this.showLogin('', '登录后才能保存微信头像', 'family')
+    }
+    if (this.data.avatarSaving) return
+    this.setData({ avatarSaving: true })
+    const saveAvatar = (avatarUrl) => {
+      const nickname = (this.data.profileName || '').trim() || (app.globalData.currentUser && app.globalData.currentUser.nickname) || '微信用户'
+      return this.authRequest('/api/me/profile', { method: 'PUT', data: { nickname: nickname, avatarUrl: avatarUrl } }).then(user => {
+        const resolved = resolveMediaUrl((user && user.avatarUrl) || avatarUrl)
+        app.globalData.currentUser = Object.assign({}, app.globalData.currentUser, {
+          nickname: (user && user.nickname) || nickname,
+          avatarUrl: (user && user.avatarUrl) || avatarUrl
+        })
+        wx.setStorageSync('currentUser', app.globalData.currentUser)
+        this.setData({ profileName: (user && user.nickname) || nickname, profileAvatarUrl: resolved })
+        return this.data.familyId ? this.loadFamily(this.data.familyId) : Promise.resolve()
+      })
+    }
+    const finish = (ok, message) => {
+      this.setData({ avatarSaving: false })
+      wx.showToast({ title: ok ? '头像已更新' : (message || '保存头像失败'), icon: ok ? 'success' : 'none' })
+    }
+    if (/^https:\/\//.test(tempPath)) {
+      saveAvatar(tempPath).then(() => finish(true)).catch(err => finish(false, err.message))
+      return
+    }
+    wx.uploadFile({
+      url: (app.globalData.apiBaseUrl || '') + '/api/uploads/image',
+      filePath: tempPath,
+      name: 'file',
+      header: app.globalData.sessionToken ? { Authorization: 'Bearer ' + app.globalData.sessionToken } : {},
+      success: (res) => {
+        let body = {}
+        try { body = JSON.parse(res.data || '{}') } catch (err) { body = {} }
+        if (res.statusCode >= 200 && res.statusCode < 300 && body.success !== false && body.data) {
+          saveAvatar(body.data).then(() => finish(true)).catch(err => finish(false, err.message))
+        } else {
+          finish(false, (body && body.message) || '上传头像失败')
+        }
+      },
+      fail: () => finish(false, '上传头像失败')
+    })
+  },
   logout() {
     wx.showModal({
       title: '退出登录',
@@ -361,10 +426,15 @@ Page({
   },
   switchFamily(e) {
     const id = Number(e.currentTarget.dataset.id)
+    if (id === this.data.familyId) return
     app.globalData.familyId = id
     wx.setStorageSync('familyId', id)
-    this.setData({ familyId: id })
-    this.loadFamily(id); this.loadOrders()
+    this.setData({
+      familyId: id,
+      inviteCode: (this.inviteCodes && this.inviteCodes[id]) || ''
+    })
+    this.loadFamily(id)
+    this.loadOrders()
   },
 
   switchTab(e) {
@@ -503,7 +573,12 @@ Page({
     wx.navigateTo({ url: '/pages/order/order' })
   },
   closeOrder() { this.setData({ orderVisible: false }) },
-  input(e) { this.setData({ [e.currentTarget.dataset.field]: e.detail.value }) },
+  input(e) {
+    const field = e.currentTarget.dataset.field
+    const data = { [field]: e.detail.value }
+    if (field === 'joinCode' && this.data.joinPreview) data.joinPreview = null
+    this.setData(data)
+  },
   submitOrder() {
     if (!app.globalData.familyId) return wx.showToast({ title: '请先创建或加入家庭', icon: 'none' })
     this.setData({ submitting: true })
@@ -531,19 +606,37 @@ Page({
   },
   createInviteCode() {
     if (!this.data.familyId) return wx.showToast({ title: '请先创建家庭', icon: 'none' })
-    this.authRequest('/api/families/' + this.data.familyId + '/invite-code', { method: 'POST' }).then(result => {
+    const familyId = this.data.familyId
+    this.authRequest('/api/families/' + familyId + '/invite-code', { method: 'POST' }).then(result => {
+      this.inviteCodes = this.inviteCodes || {}
+      this.inviteCodes[familyId] = result.inviteCode
       this.setData({ inviteCode: result.inviteCode })
       wx.setClipboardData({ data: result.inviteCode })
       wx.showToast({ title: '邀请码已复制', icon: 'success' })
     }).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
   },
+  previewJoinFamily() {
+    const code = (this.data.joinCode || '').trim().toUpperCase()
+    if (code.length !== 6) return wx.showToast({ title: '请输入 6 位邀请码', icon: 'none' })
+    if (this.data.joinLooking) return
+    this.setData({ joinLooking: true })
+    this.authRequest('/api/family-invitations/preview?inviteCode=' + encodeURIComponent(code))
+      .then(preview => this.setData({ joinPreview: preview, joinCode: code }))
+      .catch(err => wx.showToast({ title: err.message, icon: 'none' }))
+      .finally(() => this.setData({ joinLooking: false }))
+  },
+  clearJoinPreview() {
+    this.setData({ joinPreview: null })
+  },
   joinFamily() {
-    const code = (this.data.joinCode || '').trim()
+    const preview = this.data.joinPreview
+    const code = ((preview && preview.inviteCode) || this.data.joinCode || '').trim()
+    if (!preview || !preview.familyName) return this.previewJoinFamily()
     if (!code) return wx.showToast({ title: '请输入邀请码', icon: 'none' })
     this.authRequest('/api/family-invitations/join', { method: 'POST', data: { inviteCode: code } }).then(family => {
       app.globalData.familyId = family.id
       wx.setStorageSync('familyId', family.id)
-      this.setData({ joinCode: '' })
+      this.setData({ joinCode: '', joinPreview: null })
       return this.loadFamilies()
     }).then(() => wx.showToast({ title: '已加入家庭', icon: 'success' })).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
   },

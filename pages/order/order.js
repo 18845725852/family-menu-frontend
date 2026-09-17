@@ -1,5 +1,11 @@
 const app = getApp()
 
+function resolveMediaUrl(value) {
+  if (!value) return ''
+  if (/^https?:\/\//.test(value)) return value
+  return (app.globalData.apiBaseUrl || '') + (value.charAt(0) === '/' ? value : '/' + value)
+}
+
 function request(path, options) {
   options = options || {}
   return new Promise((resolve, reject) => wx.request({
@@ -20,7 +26,7 @@ function request(path, options) {
 }
 
 Page({
-  data: { basket: [], basketCount: 0, operatorName: '微信用户', operatorInitial: '微', remark: '', submitting: false },
+  data: { basket: [], basketCount: 0, operatorName: '微信用户', operatorInitial: '微', operatorAvatar: '', defaultAvatarUrl: '/assets/default-avatar.jpg', remark: '', submitting: false },
   onLoad() {
     if (!app.globalData.familyId) {
       wx.showModal({
@@ -34,7 +40,7 @@ Page({
     const basket = app.globalData.pendingBasket || []
     const user = app.globalData.currentUser || {}
     const operatorName = user.nickname || '微信用户'
-    this.setData({ basket, basketCount: basket.length, operatorName, operatorInitial: operatorName.substring(0, 1) })
+    this.setData({ basket, basketCount: basket.length, operatorName, operatorInitial: operatorName.substring(0, 1), operatorAvatar: resolveMediaUrl(user.avatarUrl || '') })
   },
   onShareAppMessage() {
     return {

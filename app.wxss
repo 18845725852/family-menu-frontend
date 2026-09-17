@@ -1,5 +1,9 @@
 page {
-  background: #f6f7f2;
+  background-color: #d8ebf2;
+  background-image: url('/assets/page-bg.png');
+  background-repeat: no-repeat;
+  background-size: 100% auto;
+  background-position: center top;
   color: #20302a;
   font-family: -apple-system-font, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   font-size: 28rpx;
@@ -7,3 +11,11 @@ page {
 
 view, text { box-sizing: border-box; }
 button { margin: 0; }
+
+.page-bg-layer {
+  background-color: #d8ebf2;
+  background-image: url('/assets/page-bg.png');
+  background-repeat: no-repeat;
+  background-size: 100% auto;
+  background-position: center top;
+}

@@ -1,7 +1,7 @@
 <scroll-view class="order-scroll" scroll-y>
 <view class="order-page">
   <view class="order-header"><view class="order-heading"><text class="back-button" bindtap="goBack">‹</text><view><text class="title">确认这桌菜</text><text class="subtitle">下单前再核对一下</text></view></view></view>
-  <view class="user-card"><view class="avatar">{{operatorInitial}}</view><view><text class="user-label">当前登录人</text><text class="user-name">{{operatorName}}</text></view></view>
+  <view class="user-card"><image class="avatar avatar-image" src="{{operatorAvatar || defaultAvatarUrl}}" mode="aspectFill"></image><view><text class="user-label">当前登录人</text><text class="user-name">{{operatorName}}</text></view></view>
   <view class="section-title">已选菜品 <text>{{basketCount}} 种</text></view>
   <view class="dish-list"><view wx:for="{{basket}}" wx:key="dishId" class="dish-row"><view class="dish-name">{{item.dishName}}</view><view class="quantity"><text data-id="{{item.dishId}}" data-delta="-1" bindtap="changeQuantity">−</text><text>{{item.quantity}}</text><text data-id="{{item.dishId}}" data-delta="1" bindtap="changeQuantity">＋</text></view></view></view>
   <view class="field-label">开饭备注 <text>选填</text></view>

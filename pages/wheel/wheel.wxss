@@ -1,8 +1,8 @@
-.page { min-height: 100vh; padding: 88rpx 28rpx 48rpx; box-sizing: border-box; background: linear-gradient(180deg, #f7f5ef 0%, #fcfcfb 100%); }
+.page { position: relative; z-index: 1; min-height: 100vh; padding: 200rpx 28rpx 48rpx; box-sizing: border-box; background-color: #d8ebf2; background-image: url('/assets/page-bg.png'); background-repeat: no-repeat; background-size: 100% auto; background-position: center top; }
 .topbar { position:relative; display:flex; align-items:flex-start; justify-content:space-between; gap:16rpx; margin-bottom:28rpx; padding-bottom:72rpx; }
 .eyebrow { display:block; color:#8a988f; font-size:20rpx; letter-spacing:3rpx; font-weight:600; }
 .title { margin-top:10rpx; color:#20302a; font-size:46rpx; font-weight:800; line-height:1.15; }
-.subtitle { margin-top:10rpx; color:#7b8981; font-size:24rpx; line-height:1.45; }
+.subtitle { margin-top:10rpx; color:#5f6f66; font-size:24rpx; line-height:1.45; }
 .back-btn { position:absolute; right:0; bottom:0; display:flex; align-items:center; gap:6rpx; padding:12rpx 20rpx 12rpx 14rpx; border:1rpx solid rgba(32,48,42,.1); border-radius:999rpx; background:linear-gradient(135deg,#20302a 0%,#3c5148 100%); color:#fff; font-size:23rpx; font-weight:700; box-shadow:0 8rpx 18rpx rgba(32,48,42,.16); }
 .back-icon { display:flex; align-items:center; justify-content:center; width:28rpx; height:32rpx; font-size:42rpx; font-family:Arial,sans-serif; font-weight:400; line-height:28rpx; transform:translateY(-1rpx); }
 .stage { display:flex; flex-direction:column; align-items:center; }

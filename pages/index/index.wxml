@@ -1,3 +1,9 @@
+<wxs module="fmt">
+module.exports.initial = function (name) {
+  name = name || ''
+  return name.length ? name.substring(0, 1) : '饭'
+}
+</wxs>
 <view class="page-shell">
   <view class="hero" style="padding-top: {{headerTop}}px;">
     <view class="hero-main">
@@ -49,16 +55,16 @@
     <view wx:elif="{{!orders.length}}" class="empty-state"><text class="empty-icon">◷</text><text>还没有订单，先去选几道菜吧</text></view>
     <block wx:for="{{orders}}" wx:key="id">
       <view wx:if="{{item.showDate}}" class="order-date"><text class="date-clock">◷</text><text>{{item.dateLabel}}</text></view>
-      <view class="order-card"><view class="order-top"><view class="order-main" style="flex:1;min-width:0"><text class="order-customer">{{item.customerName}}</text><text class="order-time">{{item.displayClock}}</text></view></view>
+      <view class="order-card"><view class="order-top"><image class="order-avatar" src="{{item.customerAvatarUrl || defaultAvatarUrl}}" mode="aspectFill"></image><view class="order-main"><text class="order-customer">{{item.customerName}}</text><text class="order-time">{{item.displayClock}}</text></view></view>
       <view class="order-items"><view wx:for="{{item.items}}" wx:for-item="orderItem" wx:key="dishId" class="order-item-row" style="display:flex;align-items:center;justify-content:space-between;min-height:64rpx;padding:8rpx 0;border-bottom:1rpx solid #f0f2f0"><text class="order-item-name" style="flex:1">{{orderItem.dishName}}</text><text class="order-item-quantity" style="margin-left:16rpx;color:#7f8a82">× {{orderItem.quantity}}</text></view></view>
       <view wx:if="{{item.remark}}" class="order-remark">备注：{{item.remark}}</view>
       </view>
     </block>
   </scroll-view>
 
-  <scroll-view class="content {{activeTab === 'family' ? '' : 'tab-hidden'}}" scroll-y>
+  <scroll-view class="content family-page {{activeTab === 'family' ? '' : 'tab-hidden'}}" scroll-y>
     <view wx:if="{{!loggedIn}}" class="guest-home">
-      <view class="guest-avatar">饭</view>
+      <image class="guest-avatar" src="/assets/default-avatar.jpg" mode="aspectFill"></image>
       <view class="guest-title">未登录</view>
       <view class="guest-subtitle">登录后可以管理家庭、查看订单，并用你的称呼点菜</view>
       <view wx:if="{{loginError}}" class="login-error">{{loginError}}</view>
@@ -66,17 +72,73 @@
       <view class="login-tip">仅使用微信身份识别你的家庭和点菜记录</view>
     </view>
     <block wx:else>
-    <view class="profile-panel"><view class="profile-head"><view class="invite-title">我的称呼</view><text wx:if="{{!profileEditing}}" class="profile-edit" bindtap="editProfile">编辑</text></view><view wx:if="{{profileEditing}}" class="profile-edit-row"><input class="member-input" placeholder="例如：张三、李四" value="{{profileName}}" data-field="profileName" bindinput="input" maxlength="50"/><button class="small-button profile-save" loading="{{profileSaving}}" bindtap="saveProfile">保存</button><text class="profile-cancel" bindtap="cancelProfileEdit">取消</text></view><view wx:else class="profile-display"><text class="profile-value">{{profileName || '未设置称呼'}}</text></view><view class="profile-tip">这个称呼会显示在家庭成员和点菜记录里</view></view>
-    <view wx:if="{{!family}}" class="family-intro"><text class="family-icon">⌂</text><text class="section-title">建立你的家庭菜单</text><text class="section-note">创建后，家人称呼会自动出现在点菜记录里</text><button class="primary-button" bindtap="openFamily">创建家庭</button></view>
-    <block wx:else>
-      <view class="family-switcher"><text class="switcher-label">我的家庭</text><view wx:for="{{families}}" wx:key="id" class="family-chip {{familyId === item.id ? 'family-chip-active' : ''}}" data-id="{{item.id}}" bindtap="switchFamily">{{item.name}}</view></view>
-      <view class="family-header"><view><text class="eyebrow">FAMILY SPACE</text><view class="family-name">{{family.name}}</view></view><text class="family-id">ID {{family.id}}</text></view>
-      <view class="section-heading"><view><text class="section-title">家庭成员</text><text class="section-note">{{members.length}} 位成员</text></view></view>
-      <view class="member-list"><view wx:for="{{members}}" wx:key="id" class="member-row"><view class="avatar">{{item.initial}}</view><view class="member-main"><text class="member-name">{{item.nickname}}</text><text class="member-role">{{item.role === 'OWNER' ? '家庭创建者' : '家庭成员'}}</text></view><text wx:if="{{item.role !== 'OWNER'}}" class="member-remove" data-id="{{item.id}}" bindtap="removeMember">移除</text></view></view>
-      <view class="invite-panel"><view class="invite-title">邀请家人加入</view><view class="invite-code" wx:if="{{inviteCode}}">{{inviteCode}}</view><button class="small-button invite-button" bindtap="createInviteCode">{{inviteCode ? '重新生成邀请码' : '生成邀请码'}}</button></view>
-    </block>
-    <view class="join-panel"><view class="invite-title">加入其他家庭</view><view class="join-row"><input class="member-input" placeholder="输入 6 位邀请码" value="{{joinCode}}" data-field="joinCode" bindinput="input" maxlength="6"/><button class="small-button" bindtap="joinFamily">加入</button></view></view>
-    <view class="account-panel"><button class="logout-button" bindtap="logout">退出登录</button></view>
+      <view class="me-card me-profile">
+        <view class="me-avatar-wrap">
+          <button class="me-avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar" hover-class="none">
+            <image class="me-avatar-image" src="{{profileAvatarUrl || defaultAvatarUrl}}" mode="aspectFill"></image>
+          </button>
+          <view class="me-avatar-badge">换</view>
+        </view>
+        <view class="me-copy">
+          <view wx:if="{{!profileEditing}}" class="me-name-row">
+            <text class="me-name">{{profileName || '未设置称呼'}}</text>
+            <text class="me-edit" bindtap="editProfile">编辑</text>
+          </view>
+          <view wx:else class="profile-edit-row">
+            <input class="member-input" type="nickname" placeholder="例如：张三、李四" value="{{profileName}}" data-field="profileName" bindinput="input" maxlength="50"/>
+            <button class="small-button profile-save" loading="{{profileSaving}}" bindtap="saveProfile">保存</button>
+            <text class="profile-cancel" bindtap="cancelProfileEdit">取消</text>
+          </view>
+          <view class="me-tip">点击头像更换微信头像</view>
+        </view>
+      </view>
+
+      <view wx:if="{{!family}}" class="me-card me-empty">
+        <view class="me-empty-title">还没有家庭</view>
+        <view class="me-empty-note">创建后，家人称呼会自动出现在点菜记录里</view>
+        <view class="me-primary" bindtap="openFamily">创建家庭</view>
+      </view>
+      <view wx:else class="me-card">
+        <view class="me-card-head">
+          <text class="me-card-title">我的家庭</text>
+          <text class="me-card-note">{{members.length}} 位成员</text>
+        </view>
+        <view class="family-switcher">
+          <view wx:for="{{families}}" wx:key="id" class="family-chip {{familyId === item.id ? 'family-chip-active' : ''}}" data-id="{{item.id}}" bindtap="switchFamily">{{item.name}}</view>
+        </view>
+        <view class="member-list">
+          <view wx:for="{{members}}" wx:key="id" class="member-row">
+            <image class="avatar avatar-image" src="{{item.avatarUrl || defaultAvatarUrl}}" mode="aspectFill"></image>
+            <view class="member-main">
+              <text class="member-name">{{item.nickname}}</text>
+              <text class="member-role">{{item.role === 'OWNER' ? '家庭创建者' : '家庭成员'}}</text>
+            </view>
+            <text wx:if="{{item.role !== 'OWNER'}}" class="member-remove" data-id="{{item.id}}" bindtap="removeMember">移除</text>
+          </view>
+        </view>
+        <view class="invite-block">
+          <view class="me-subtitle">邀请家人加入</view>
+          <view wx:if="{{inviteCode}}" class="invite-code">{{inviteCode}}</view>
+          <view class="me-secondary" bindtap="createInviteCode">{{inviteCode ? '重新生成邀请码' : '生成邀请码'}}</view>
+        </view>
+      </view>
+
+      <view class="me-card">
+        <view class="me-card-title">加入其他家庭</view>
+        <view class="join-row">
+          <input class="member-input" placeholder="输入 6 位邀请码" value="{{joinCode}}" data-field="joinCode" bindinput="input" maxlength="6"/>
+          <view class="me-join {{joinLooking ? 'me-join-disabled' : ''}}" bindtap="previewJoinFamily">{{joinLooking ? '查询中' : '查询'}}</view>
+        </view>
+        <view wx:if="{{joinPreview}}" class="join-preview">
+          <view class="join-preview-label">即将加入</view>
+          <view class="join-preview-name">{{joinPreview.familyName}}</view>
+          <view class="join-preview-actions">
+            <view class="me-secondary join-cancel" bindtap="clearJoinPreview">取消</view>
+            <view class="me-join" bindtap="joinFamily">确认加入</view>
+          </view>
+        </view>
+      </view>
+      <view class="logout-link" bindtap="logout">退出登录</view>
     </block>
   </scroll-view>
 </view>
