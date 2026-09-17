@@ -91,6 +91,28 @@ Page({
     this.loadRestaurants()
   },
 
+  onReady() {
+    this.bindPointerAnimation()
+  },
+
+  onUnload() {
+    if (this.pointerRotation && wx.worklet && wx.worklet.cancelAnimation) {
+      wx.worklet.cancelAnimation(this.pointerRotation)
+    }
+  },
+
+  bindPointerAnimation() {
+    if (!wx.worklet || typeof this.applyAnimatedStyle !== 'function') return
+    const rotation = wx.worklet.shared(-90)
+    this.applyAnimatedStyle('#wheel-pointer', () => {
+      'worklet'
+      return {
+        transform: 'rotate(' + rotation.value + 'deg)'
+      }
+    })
+    this.pointerRotation = rotation
+  },
+
   onShareAppMessage() {
     return {
       title: '不想做饭？转盘帮你决定吃什么',
@@ -154,21 +176,40 @@ Page({
     const chosenIndex = Math.floor(Math.random() * this.data.restaurants.length)
     const slice = 360 / this.data.restaurants.length
     const desired = -90 + chosenIndex * slice + slice / 2
-    const current = this.data.pointerRotation
+    const current = this.pointerRotation ? this.pointerRotation.value : this.data.pointerRotation
     const currentAngle = ((current % 360) + 360) % 360
     const desiredAngle = ((desired % 360) + 360) % 360
     const delta = (desiredAngle - currentAngle + 360) % 360
     const turns = 11 + Math.floor(Math.random() * 3)
     const nextRotation = current + turns * 360 + delta
     const result = this.data.restaurants[chosenIndex]
+    const duration = 10000
+    this.pendingResult = result
+    if (this.pointerRotation && wx.worklet && wx.worklet.timing) {
+      const { timing, Easing, cancelAnimation, runOnJS } = wx.worklet
+      const onDone = (finished) => {
+        if (!finished) return
+        this.setData({ spinning: false, result: this.pendingResult, hasSpun: true })
+      }
+      cancelAnimation(this.pointerRotation)
+      const easing = Easing.bezier ? Easing.bezier(0.22, 0.61, 0.36, 1) : Easing.out(Easing.cubic)
+      this.pointerRotation.value = timing(nextRotation, {
+        duration: duration,
+        easing: easing
+      }, (finished) => {
+        'worklet'
+        runOnJS(onDone)(finished)
+      })
+    } else {
+      this.setData({ pointerRotation: nextRotation })
+      setTimeout(() => {
+        this.setData({ spinning: false, result: result, hasSpun: true })
+      }, duration + 200)
+    }
     this.setData({
       spinning: true,
       // Keep the previous result card in place for subsequent spins.
-      result: this.data.hasSpun ? this.data.result : null,
-      pointerRotation: nextRotation
+      result: this.data.hasSpun ? this.data.result : null
     })
-    setTimeout(() => {
-      this.setData({ spinning: false, result: result, hasSpun: true })
-    }, 10700)
   }
 })

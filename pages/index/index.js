@@ -56,6 +56,7 @@ Page({
     displayDishes: [],
     dishSections: [],
     scrollIntoView: '',
+    scrollAnimated: false,
     defaultDishUrl: '',
     basket: [],
     basketCount: 0,
@@ -368,7 +369,12 @@ Page({
 
   switchTab(e) {
     const tab = e.currentTarget.dataset.tab
-    this.setData({ activeTab: tab, basketVisible: false })
+    this.setData({
+      activeTab: tab,
+      basketVisible: false,
+      scrollIntoView: '',
+      scrollAnimated: false
+    })
   },
   goWheel() { wx.navigateTo({ url: '/pages/wheel/wheel' }) },
   toggleSearch() {
@@ -383,7 +389,7 @@ Page({
   },
   selectCategory(e) {
     const target = 'dish-section-' + e.currentTarget.dataset.id
-    this.setData({ activeCategory: e.currentTarget.dataset.category, scrollIntoView: '' }, () => {
+    this.setData({ activeCategory: e.currentTarget.dataset.category, scrollIntoView: '', scrollAnimated: true }, () => {
       this.setData({ scrollIntoView: target })
     })
   },

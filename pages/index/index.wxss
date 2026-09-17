@@ -155,6 +155,14 @@ page { min-height: 100vh; }
   height: auto !important;
   margin: 0 !important;
 }
+.page-shell > .content.tab-hidden,
+.menu-content.tab-hidden {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none;
+}
 .page-shell > .content:not(.menu-content) {
   padding-left: 32rpx;
   padding-right: 32rpx;

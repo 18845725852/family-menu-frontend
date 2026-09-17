@@ -12,7 +12,7 @@
       "outputPath": ""
     },
     "useCompilerPlugins": false,
-    "compileWorklet": false,
+    "compileWorklet": true,
     "uploadWithSourceMap": true,
     "packNpmManually": false,
     "minifyWXSS": true,

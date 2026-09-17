@@ -19,7 +19,7 @@
           </view>
         </view>
       </view>
-      <view class="wheel-pointer" style="transform: translateZ(0) rotate({{pointerRotation}}deg);">
+      <view class="wheel-pointer" id="wheel-pointer">
         <view class="pointer-shaft"></view>
         <view class="pointer-head"></view>
       </view>
