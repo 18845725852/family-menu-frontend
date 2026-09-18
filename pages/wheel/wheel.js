@@ -16,7 +16,11 @@ function request(path, options) {
       success(res) {
         const body = res.data || {}
         if (res.statusCode >= 200 && res.statusCode < 300 && body.success !== false) resolve(body.data)
-        else reject(new Error(body.message || '请求失败'))
+        else {
+          const error = new Error(body.message || (res.statusCode === 401 ? '请先登录' : '请求失败'))
+          error.statusCode = res.statusCode
+          reject(error)
+        }
       },
       fail(err) {
         reject(new Error(err && err.errMsg ? err.errMsg : '网络不可用，请确认后端服务已启动'))
@@ -84,10 +88,17 @@ Page({
     result: null,
     hasSpun: false,
     loading: true,
-    error: ''
+    error: '',
+    loggedIn: false,
+    editing: false,
+    saving: false,
+    draft: [],
+    windowHeight: 700
   },
 
   onLoad() {
+    const windowInfo = (wx.getWindowInfo && wx.getWindowInfo()) || wx.getSystemInfoSync() || {}
+    this.setData({ windowHeight: windowInfo.windowHeight || 700 })
     this.loadRestaurants()
   },
 
@@ -127,43 +138,165 @@ Page({
     }
   },
 
+  isLoggedIn() {
+    return !!(app.globalData.sessionToken && app.globalData.currentUser)
+  },
+
+  applyRestaurants(list) {
+    list = list || []
+    const count = list.length || 1
+    const slice = 360 / count
+    const frameSize = 560
+    const border = 14
+    const imageSize = frameSize - border * 2
+    const svgSize = 600
+    const svgOuter = 264
+    const svgInner = 62
+    const scale = imageSize / svgSize
+    const outerR = border + svgOuter * scale
+    const innerR = border + svgInner * scale
+    const bandRatio = count > 12 ? 0.62 : count > 8 ? 0.58 : 0.55
+    const textRadius = innerR + (outerR - innerR) * bandRatio
+    const center = frameSize / 2
+    const fontSize = count > 12 ? 16 : count > 8 ? 18 : 20
+    const labels = list.map((item, index) => {
+      const angle = (-90 + (index + 0.5) * slice) * Math.PI / 180
+      return {
+        id: item.id || ('draft-' + index),
+        lines: splitLabel(item.name),
+        left: center + Math.cos(angle) * textRadius,
+        top: center + Math.sin(angle) * textRadius,
+        fontSize: fontSize
+      }
+    })
+    this.setData({
+      restaurants: list,
+      labels: labels,
+      wheelSvg: createWheelSvg(list)
+    })
+  },
+
   loadRestaurants() {
-    this.setData({ loading: true, error: '' })
-    return request('/api/restaurants').then(restaurants => {
+    const loggedIn = this.isLoggedIn()
+    this.setData({ loading: true, error: '', loggedIn: loggedIn, editing: false })
+    const loadGlobal = () => request('/api/restaurants').then(restaurants => {
+      this.applyRestaurants(restaurants || [])
+    })
+    if (!loggedIn) {
+      return loadGlobal().catch(err => {
+        this.setData({ error: err.message })
+      }).finally(() => {
+        this.setData({ loading: false })
+      })
+    }
+    return request('/api/me/wheel-restaurants').then(restaurants => {
       const list = restaurants || []
-      const count = list.length || 1
-      const slice = 360 / count
-      // Keep labels in the same fixed coordinate system as the 560rpx wheel.
-      const wheelSize = 560
-      const textRadius = count > 8 ? 158 : 166
-      const center = wheelSize / 2
-      const labels = list.map((item, index) => {
-        const angle = -90 + index * slice + slice / 2
-        const rad = angle * Math.PI / 180
-        const x = center + Math.cos(rad) * textRadius
-        const y = center + Math.sin(rad) * textRadius
-        return {
-          id: item.id,
-          lines: splitLabel(item.name),
-          left: x,
-          top: y,
-          width: count > 8 ? 104 : 116,
-          fontSize: count > 8 ? 17 : 19
-        }
-      })
-      this.setData({
-        restaurants: list,
-        labels: labels,
-        wheelSvg: createWheelSvg(list)
-      })
+      if (list.length) {
+        this.applyRestaurants(list)
+        return
+      }
+      return loadGlobal()
     }).catch(err => {
+      if (err.statusCode === 401) {
+        this.setData({ loggedIn: false })
+        return loadGlobal()
+      }
       this.setData({ error: err.message })
     }).finally(() => {
       this.setData({ loading: false })
     })
   },
 
+  startEdit() {
+    if (!this.isLoggedIn()) {
+      wx.showToast({ title: '请先到「我的」登录', icon: 'none' })
+      return
+    }
+    const draft = (this.data.restaurants || []).map((item, index) => ({
+      key: String(item.id || index),
+      name: item.name
+    }))
+    this.setData({ editing: true, draft: draft })
+  },
+
+  cancelEdit() {
+    this.setData({ editing: false, draft: [] })
+  },
+
+  inputDraft(e) {
+    const index = Number(e.currentTarget.dataset.index)
+    const draft = this.data.draft.slice()
+    if (!draft[index]) return
+    draft[index] = Object.assign({}, draft[index], { name: e.detail.value })
+    this.setData({ draft: draft })
+  },
+
+  addDraft() {
+    if (this.data.draft.length >= 16) {
+      wx.showToast({ title: '最多添加 16 家餐厅', icon: 'none' })
+      return
+    }
+    const draft = this.data.draft.concat([{ key: 'new-' + Date.now(), name: '' }])
+    this.setData({ draft: draft })
+  },
+
+  removeDraft(e) {
+    if (this.data.draft.length <= 3) {
+      wx.showToast({ title: '至少保留 3 家餐厅', icon: 'none' })
+      return
+    }
+    const index = Number(e.currentTarget.dataset.index)
+    const draft = this.data.draft.filter((_, i) => i !== index)
+    this.setData({ draft: draft })
+  },
+
+  saveDraft() {
+    if (this.data.saving) return
+    const names = []
+    const seen = {}
+    for (let i = 0; i < this.data.draft.length; i++) {
+      const name = String(this.data.draft[i].name || '').trim()
+      if (!name) {
+        wx.showToast({ title: '餐厅名称不能为空', icon: 'none' })
+        return
+      }
+      if (name.length > 20) {
+        wx.showToast({ title: '名称不能超过20个字', icon: 'none' })
+        return
+      }
+      if (seen[name]) {
+        wx.showToast({ title: '餐厅名称不能重复', icon: 'none' })
+        return
+      }
+      seen[name] = true
+      names.push(name)
+    }
+    if (names.length < 3 || names.length > 16) {
+      wx.showToast({ title: '餐厅数量需要 3 到 16 家', icon: 'none' })
+      return
+    }
+    this.setData({ saving: true })
+    request('/api/me/wheel-restaurants', {
+      method: 'PUT',
+      data: { items: names.map(name => ({ name: name })) }
+    }).then(restaurants => {
+      this.applyRestaurants(restaurants || [])
+      this.setData({ editing: false, draft: [], result: null, hasSpun: false })
+      wx.showToast({ title: '已保存到我的转盘', icon: 'success' })
+    }).catch(err => {
+      wx.showToast({ title: err.message || '保存失败', icon: 'none' })
+    }).finally(() => {
+      this.setData({ saving: false })
+    })
+  },
+
   goBack() {
+    wx.navigateBack({ delta: 1 })
+  },
+
+  goLogin() {
+    app.globalData.openFamilyTab = true
+    app.globalData.openLogin = true
     wx.navigateBack({ delta: 1 })
   },
 

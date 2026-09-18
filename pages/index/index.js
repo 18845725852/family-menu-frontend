@@ -39,6 +39,13 @@ function formatTime(value) {
   return String(value).replace('T', ' ').slice(0, 16)
 }
 
+function parseRecipe(recipe) {
+  if (!recipe) return []
+  return String(recipe).split(/\n+/).map(function (line) {
+    return line.replace(/^\s*\d+[.、\)]\s*/, '').trim()
+  }).filter(Boolean)
+}
+
 function resolveMediaUrl(value) {
   if (!value) return ''
   if (/^https?:\/\//.test(value)) return value
@@ -129,6 +136,16 @@ Page({
   },
 
   onShow() {
+    if (app.globalData.openFamilyTab) {
+      app.globalData.openFamilyTab = false
+      this.setData({ activeTab: 'family', basketVisible: false })
+      if (app.globalData.openLogin && !this.isLoggedIn()) {
+        app.globalData.openLogin = false
+        this.showLogin('', '登录后可以自定义自己的转盘', 'family')
+      } else {
+        app.globalData.openLogin = false
+      }
+    }
     if (app.globalData.orderSubmitted) {
       app.globalData.orderSubmitted = false
       app.globalData.pendingBasket = []
@@ -291,7 +308,10 @@ Page({
           return Object.assign({}, category, { line1: name.substring(0, 2), line2: name.substring(2) })
         })
         const activeCategory = this.data.activeCategory || (list[0] && list[0].name) || ''
-        const normalizedDishes = (dishes || []).map(dish => Object.assign({}, dish, { imageUrl: resolveMediaUrl(dish.imageUrl) }))
+        const normalizedDishes = (dishes || []).map(dish => Object.assign({}, dish, {
+          imageUrl: resolveMediaUrl(dish.imageUrl),
+          recipeSteps: parseRecipe(dish.recipe)
+        }))
         this.setData({ categories: list, dishes: normalizedDishes, activeCategory: activeCategory }, this.refreshDisplayDishes)
       })
       .catch(err => this.setData({ error: err.message }))
@@ -517,6 +537,19 @@ Page({
     this.setData({ previewImageVisible: true, previewImageUrl: url })
   },
   closePreviewImage() { this.setData({ previewImageVisible: false, previewImageUrl: '' }) },
+  openDishDetail(e) {
+    const id = Number(e.currentTarget.dataset.id)
+    const dish = this.data.displayDishes.find(item => Number(item.id) === id) || this.data.dishes.find(item => Number(item.id) === id)
+    if (!dish) return
+    this.setData({ dishDetailVisible: true, dishDetail: dish })
+  },
+  closeDishDetail() { this.setData({ dishDetailVisible: false }) },
+  addDishFromDetail() {
+    if (!this.data.dishDetail) return
+    this.changeDish(this.data.dishDetail.id, 1)
+    this.setData({ dishDetailVisible: false })
+    wx.showToast({ title: '已加入菜单', icon: 'success' })
+  },
   increaseDish(e) { this.changeDish(e.currentTarget.dataset.id, 1) },
   decreaseDish(e) { this.changeDish(e.currentTarget.dataset.id, -1) },
   changeDish(id, delta) {

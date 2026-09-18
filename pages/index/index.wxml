@@ -33,7 +33,7 @@ module.exports.initial = function (name) {
           <block wx:for="{{section.dishes}}" wx:for-item="item" wx:key="id">
           <view class="dish-card" style="display:flex;align-items:center;min-height:150rpx;margin:0;padding:14rpx 0;border:0;border-bottom:1rpx solid #f0f2f0;box-shadow:none">
             <image class="dish-image" style="flex:none;width:142rpx;height:142rpx;border-radius:20rpx" src="{{item.imageUrl || defaultDishUrl}}" mode="aspectFill" lazy-load="true" fade-show="true" data-image="{{item.imageUrl || defaultDishUrl}}" catchtap="previewDishImage"></image>
-            <view class="dish-info" style="flex:1;min-width:0;padding:0 14rpx"><view class="dish-name">{{item.name}}</view><view class="dish-category dish-description">{{item.description}}</view><view class="dish-rating">★★★★★</view></view>
+            <view class="dish-info" style="flex:1;min-width:0;padding:0 14rpx" data-id="{{item.id}}" catchtap="openDishDetail"><view class="dish-name">{{item.name}}</view><view class="dish-category dish-description">{{item.description}}</view><view class="dish-recipe-link">{{item.recipeSteps.length ? '查看做法 >>' : '查看介绍 >>'}}</view></view>
             <view class="dish-action" style="flex:none;margin:0;min-height:0"><view wx:if="{{item.quantity}}" class="stepper"><text class="step" data-id="{{item.id}}" catchtap="decreaseDish">−</text><text class="quantity">{{item.quantity}}</text><text class="step" data-id="{{item.id}}" catchtap="increaseDish">＋</text></view><view wx:else class="add-circle" data-id="{{item.id}}" catchtap="addDish">＋</view></view>
           </view>
           </block>
@@ -138,7 +138,7 @@ module.exports.initial = function (name) {
           </view>
         </view>
       </view>
-      <view class="logout-link" bindtap="logout">退出登录</view>
+      <view class="logout-btn" bindtap="logout">退出登录</view>
     </block>
   </scroll-view>
 </view>
@@ -154,6 +154,23 @@ module.exports.initial = function (name) {
 <view wx:if="{{familyVisible}}" class="overlay"><view class="sheet"><view class="sheet-head"><text class="sheet-title">创建家庭</text><text class="sheet-close" bindtap="closeFamily">×</text></view><view class="form-label">家庭名称</view><input class="form-input" placeholder="例如：我们家" value="{{familyName}}" data-field="familyName" bindinput="input" maxlength="30"/><view class="family-owner-tip">创建者将使用当前称呼：{{profileName}}</view><button class="primary-button sheet-button" bindtap="createFamily">创建并进入</button></view></view>
 
 <view wx:if="{{previewImageVisible}}" class="image-preview-mask" bindtap="closePreviewImage"><view class="image-preview-card" catchtap="noop"><text class="image-preview-close" bindtap="closePreviewImage">×</text><image class="image-preview" src="{{previewImageUrl}}" mode="widthFix"></image></view></view>
+
+<view wx:if="{{dishDetailVisible}}" class="overlay" bindtap="closeDishDetail">
+  <view class="sheet dish-detail-sheet" catchtap="noop">
+    <text class="sheet-close dish-detail-close" bindtap="closeDishDetail">×</text>
+    <image class="dish-detail-image" src="{{dishDetail.imageUrl || defaultDishUrl}}" mode="aspectFill"></image>
+    <view class="dish-detail-body">
+      <view class="dish-detail-name">{{dishDetail.name}}</view>
+      <view wx:if="{{dishDetail.description}}" class="dish-detail-desc">{{dishDetail.description}}</view>
+      <view class="dish-detail-section">制作方法</view>
+      <view wx:if="{{!dishDetail.recipeSteps.length}}" class="dish-detail-empty">这道菜还没有写做法</view>
+      <view wx:for="{{dishDetail.recipeSteps}}" wx:for-index="stepIndex" wx:key="*this" class="recipe-step">
+        <text class="recipe-text">{{item}}</text>
+      </view>
+    </view>
+    <view class="dish-detail-action" data-id="{{dishDetail.id}}" bindtap="addDishFromDetail">加入菜单</view>
+  </view>
+</view>
 
 <view wx:if="{{loginVisible}}" class="login-gate">
   <view class="login-card">

@@ -1,8 +1,9 @@
+<scroll-view class="page-scroll" scroll-y enhanced="{{true}}" bounces="{{true}}" show-scrollbar="{{false}}" style="height: {{windowHeight}}px;">
 <view class="page">
   <view class="topbar">
     <view>
       <view class="title">外出吃什么</view>
-      <view class="subtitle">别纠结了，让命运替你点单</view>
+      <view class="subtitle">{{loggedIn ? '这是你的专属转盘，改完只有自己看得到' : '别纠结了，让命运替你点单'}}</view>
     </view>
     <view class="back-btn" bindtap="goBack"><text class="back-icon">‹</text><text>返回菜谱</text></view>
   </view>
@@ -11,12 +12,12 @@
     <view class="wheel-frame" bindtap="spinWheel">
       <view class="wheel-spin">
         <image class="wheel-image" src="{{wheelSvg}}" mode="aspectFit"></image>
-        <view class="wheel-label-layer">
-          <view wx:for="{{labels}}" wx:key="id" class="wheel-label" style="left:{{item.left}}rpx; top:{{item.top}}rpx; width:{{item.width}}rpx; font-size:{{item.fontSize}}rpx;">
-            <block wx:for="{{item.lines}}" wx:for-item="line" wx:key="*this">
-              <text class="wheel-label-line">{{line}}</text>
-            </block>
-          </view>
+      </view>
+      <view class="wheel-label-layer">
+        <view wx:for="{{labels}}" wx:key="id" class="wheel-label" style="left:{{item.left}}rpx; top:{{item.top}}rpx; font-size:{{item.fontSize}}rpx;">
+          <block wx:for="{{item.lines}}" wx:for-item="line" wx:key="*this">
+            <text class="wheel-label-line">{{line}}</text>
+          </block>
         </view>
       </view>
       <view class="wheel-pointer" id="wheel-pointer">
@@ -40,11 +41,30 @@
 
   <view class="panel">
     <view class="panel-head">
-      <view class="panel-title">可选餐厅</view>
-      <view class="panel-note">{{restaurants.length}} 家</view>
+      <view>
+        <view class="panel-title">{{loggedIn ? '我的餐厅' : '可选餐厅'}}</view>
+        <view class="panel-note">{{editing ? draft.length : restaurants.length}} / 16 家，至少 3 家</view>
+      </view>
+      <view wx:if="{{loggedIn && !editing}}" class="panel-edit" bindtap="startEdit">编辑</view>
+      <view wx:elif="{{loggedIn && editing}}" class="panel-actions">
+        <view class="panel-cancel" bindtap="cancelEdit">取消</view>
+        <view class="panel-save {{saving ? 'disabled' : ''}}" bindtap="saveDraft">{{saving ? '保存中' : '保存'}}</view>
+      </view>
     </view>
-    <view class="chip-wrap">
+    <view wx:if="{{!editing}}" class="chip-wrap">
       <view wx:for="{{restaurants}}" wx:for-item="item" wx:key="id" class="chip">{{item.name}}</view>
+    </view>
+    <view wx:else class="editor">
+      <view wx:for="{{draft}}" wx:for-item="item" wx:key="key" class="editor-row">
+        <input class="editor-input" value="{{item.name}}" data-index="{{index}}" maxlength="20" placeholder="餐厅名称" bindinput="inputDraft"/>
+        <view class="editor-remove" data-index="{{index}}" bindtap="removeDraft">删除</view>
+      </view>
+      <view class="editor-add {{draft.length >= 16 ? 'disabled' : ''}}" bindtap="addDraft">{{draft.length >= 16 ? '已到上限 16 家' : '+ 添加餐厅'}}</view>
+    </view>
+    <view wx:if="{{!loggedIn}}" class="panel-login-tip">
+      登录后可以自定义自己的转盘
+      <text class="panel-login-link" bindtap="goLogin">去登录</text>
     </view>
   </view>
 </view>
+</scroll-view>
