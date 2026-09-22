@@ -88,7 +88,7 @@ Page({
     loginVisible: false,
     loginLoading: false,
     loginError: '',
-    loginPurpose: '登录后可以查看家庭订单、管理家庭并提交菜单',
+    loginPurpose: '登录后可以查看家庭组订单、管理家庭组并提交菜单',
     loggedIn: false,
     authReady: false,
     loading: true,
@@ -99,7 +99,19 @@ Page({
     headerTop: 98,
     profileAvatarUrl: '',
     defaultAvatarUrl: '/assets/default-avatar.jpg',
-    avatarSaving: false
+    avatarSaving: false,
+    customMenu: false,
+    editMode: false,
+    dishEditorVisible: false,
+    editorDishId: null,
+    editorName: '',
+    editorCategory: '',
+    editorDescription: '',
+    editorRecipe: '',
+    editorSort: '0',
+    editorImageUrl: '',
+    editorImagePreview: '',
+    editorSaving: false
   },
 
   onLoad() {
@@ -186,9 +198,12 @@ Page({
       loggedIn: false,
       authReady: false,
       loginLoading: false,
-      loginError: ''
+      loginError: '',
+      customMenu: false,
+      editMode: false
     })
     this.updateBasket([])
+    this.loadMenu()
   },
 
   showLogin(message, purpose, nextAction) {
@@ -197,7 +212,7 @@ Page({
       loginVisible: true,
       loginLoading: false,
       loginError: message || '',
-      loginPurpose: purpose || '登录后可以查看家庭订单、管理家庭并提交菜单',
+      loginPurpose: purpose || '登录后可以查看家庭组订单、管理家庭组并提交菜单',
       authReady: false,
       error: ''
     })
@@ -301,18 +316,34 @@ Page({
 
   loadMenu() {
     this.setData({ loading: true, error: '' })
-    return Promise.all([request('/api/dish-categories'), request('/api/dishes')])
-      .then(([categories, dishes]) => {
+    const familyId = this.isLoggedIn() ? app.globalData.familyId : null
+    const menuRequest = familyId
+      ? this.authRequest('/api/families/' + familyId + '/menu')
+      : request('/api/dishes').then(dishes => ({ customMenu: false, dishes: dishes || [] }))
+    return Promise.all([request('/api/dish-categories'), menuRequest])
+      .then(([categories, menu]) => {
         const list = (categories || []).map(category => {
           const name = category.name || ''
           return Object.assign({}, category, { line1: name.substring(0, 2), line2: name.substring(2) })
         })
         const activeCategory = this.data.activeCategory || (list[0] && list[0].name) || ''
-        const normalizedDishes = (dishes || []).map(dish => Object.assign({}, dish, {
+        const customMenu = !!(menu && menu.customMenu)
+        const normalizedDishes = ((menu && menu.dishes) || []).map(dish => Object.assign({}, dish, {
           imageUrl: resolveMediaUrl(dish.imageUrl),
           recipeSteps: parseRecipe(dish.recipe)
         }))
-        this.setData({ categories: list, dishes: normalizedDishes, activeCategory: activeCategory }, this.refreshDisplayDishes)
+        const sameMenu = customMenu === this.data.customMenu
+        const basket = sameMenu ? this.data.basket : []
+        this.setData({
+          categories: list,
+          dishes: normalizedDishes,
+          activeCategory: activeCategory,
+          customMenu: customMenu,
+          editMode: customMenu ? this.data.editMode : false,
+          basket: basket,
+          basketCount: basket.length,
+          basketTotal: basket.length
+        }, this.refreshDisplayDishes)
       })
       .catch(err => this.setData({ error: err.message }))
       .finally(() => this.setData({ loading: false }))
@@ -363,8 +394,8 @@ Page({
         wx.removeStorageSync('familyId')
       }
       this.setData({ families: list, familyId: currentId || null })
-      if (currentId) return this.loadFamily(currentId)
-      this.setData({ family: null, members: [], orders: [], inviteCode: '' })
+      const follow = currentId ? this.loadFamily(currentId) : Promise.resolve(this.setData({ family: null, members: [], orders: [], inviteCode: '' }))
+      return follow.then(() => this.loadMenu())
     })
   },
   saveProfile() {
@@ -432,7 +463,7 @@ Page({
   logout() {
     wx.showModal({
       title: '退出登录',
-      content: '退出后将无法查看家庭和订单，确定退出吗？',
+      content: '退出后将无法查看家庭组和订单，确定退出吗？',
       confirmText: '退出',
       confirmColor: '#b25f50',
       success: res => {
@@ -452,10 +483,13 @@ Page({
     wx.setStorageSync('familyId', id)
     this.setData({
       familyId: id,
+      editMode: false,
       inviteCode: (this.inviteCodes && this.inviteCodes[id]) || ''
     })
+    this.updateBasket([])
     this.loadFamily(id)
     this.loadOrders()
+    this.loadMenu()
   },
 
   switchTab(e) {
@@ -585,15 +619,15 @@ Page({
   openOrder() {
     if (!this.data.basket.length) return wx.showToast({ title: '购物篮还是空的', icon: 'none' })
     if (!this.isLoggedIn()) {
-      return this.showLogin('', '登录后才能把已选菜品提交给你的家庭', 'order')
+      return this.showLogin('', '登录后才能把已选菜品提交给你的家庭组', 'order')
     }
     this.continueOpenOrder()
   },
   continueOpenOrder() {
     if (!app.globalData.familyId) {
       return wx.showModal({
-        title: '先建立家庭菜单',
-        content: '创建或加入家庭后才能下单，订单只会展示给同一家庭的成员。',
+        title: '先建立家庭组菜单',
+        content: '创建或加入家庭组后才能下单，订单只会展示给同一家庭组的成员。',
         confirmText: '去创建',
         cancelText: '继续浏览',
         success: res => {
@@ -607,6 +641,139 @@ Page({
     wx.navigateTo({ url: '/pages/order/order' })
   },
   closeOrder() { this.setData({ orderVisible: false }) },
+
+  toggleEditMode(e) {
+    this.setData({ editMode: !!(e.detail && e.detail.value) })
+  },
+  toggleCustomMenu(e) {
+    const enabled = !!(e.detail && e.detail.value)
+    if (!this.isLoggedIn() || !app.globalData.familyId) {
+      this.setData({ customMenu: false })
+      return this.showLogin('', '登录后才能自定义菜谱', 'menu')
+    }
+    wx.showLoading({ title: enabled ? '正在准备家庭菜谱' : '正在切回默认菜谱', mask: true })
+    this.authRequest('/api/families/' + app.globalData.familyId + '/menu', { method: 'PUT', data: { customMenu: enabled } })
+      .then(menu => {
+        const normalizedDishes = ((menu && menu.dishes) || []).map(dish => Object.assign({}, dish, {
+          imageUrl: resolveMediaUrl(dish.imageUrl),
+          recipeSteps: parseRecipe(dish.recipe)
+        }))
+        const enabled = !!menu.customMenu
+        this.setData({ customMenu: enabled, editMode: enabled ? this.data.editMode : false, dishes: normalizedDishes, basket: [], basketCount: 0, basketTotal: 0 }, this.refreshDisplayDishes)
+      })
+      .catch(err => {
+        this.setData({ customMenu: !enabled })
+        wx.showToast({ title: err.message, icon: 'none' })
+      })
+      .finally(() => wx.hideLoading())
+  },
+  openDishEditor(e) {
+    if (!this.data.customMenu || !this.data.editMode) return
+    const id = e && e.currentTarget && e.currentTarget.dataset ? Number(e.currentTarget.dataset.id) : null
+    const dish = id ? this.data.dishes.find(item => Number(item.id) === id) : null
+    this.setData({
+      dishEditorVisible: true,
+      editorDishId: dish ? dish.id : null,
+      editorName: dish ? dish.name : '',
+      editorCategory: dish ? dish.category : ((this.data.categories[0] && this.data.categories[0].name) || ''),
+      editorDescription: dish && dish.description ? dish.description : '',
+      editorRecipe: dish && dish.recipe ? dish.recipe : '',
+      editorSort: dish ? String(dish.sort || 0) : '0',
+      editorImageUrl: dish && dish.imageUrl ? dish.imageUrl : '',
+      editorImagePreview: dish && dish.imageUrl ? dish.imageUrl : ''
+    })
+  },
+  closeDishEditor() { this.setData({ dishEditorVisible: false }) },
+  chooseEditorCategory(e) {
+    const category = this.data.categories[Number(e.detail.value)]
+    if (category) this.setData({ editorCategory: category.name })
+  },
+  chooseEditorImage() {
+    const uploadPath = (path) => {
+      if (!path) return
+      if (!app.globalData.familyId) return wx.showToast({ title: '请先进入家庭组', icon: 'none' })
+      wx.showLoading({ title: '正在上传', mask: true })
+      wx.uploadFile({
+        url: (app.globalData.apiBaseUrl || '') + '/api/uploads/image',
+        filePath: path,
+        name: 'file',
+        formData: { category: 'family', familyId: String(app.globalData.familyId) },
+        header: app.globalData.sessionToken ? { Authorization: 'Bearer ' + app.globalData.sessionToken } : {},
+        success: upload => {
+          wx.hideLoading()
+          let body = {}
+          try { body = JSON.parse(upload.data || '{}') } catch (err) { body = {} }
+          if (upload.statusCode >= 200 && upload.statusCode < 300 && body.success !== false && body.data) {
+            this.setData({ editorImageUrl: body.data, editorImagePreview: resolveMediaUrl(body.data) })
+          } else wx.showToast({ title: (body.data && body.data.message) || body.message || '上传图片失败', icon: 'none' })
+        },
+        fail: () => {
+          wx.hideLoading()
+          wx.showToast({ title: '上传图片失败', icon: 'none' })
+        }
+      })
+    }
+    const options = {
+      count: 1,
+      mediaType: ['image'],
+      sizeType: ['compressed'],
+      sourceType: ['album', 'camera'],
+      success: res => {
+        const file = res.tempFiles && res.tempFiles[0]
+        uploadPath((file && file.tempFilePath) || (res.tempFilePaths && res.tempFilePaths[0]))
+      },
+      fail: () => wx.showToast({ title: '未选择图片', icon: 'none' })
+    }
+    if (wx.chooseMedia) wx.chooseMedia(options)
+    else wx.chooseImage(options)
+  },
+  saveDishEditor() {
+    const name = (this.data.editorName || '').trim()
+    const category = this.data.editorCategory
+    if (!name || !category) return wx.showToast({ title: '请填写菜名并选择分类', icon: 'none' })
+    const payload = {
+      name: name,
+      category: category,
+      description: (this.data.editorDescription || '').trim(),
+      recipe: (this.data.editorRecipe || '').trim(),
+      imageUrl: this.data.editorImageUrl || null,
+      sort: Number(this.data.editorSort || 0)
+    }
+    const id = this.data.editorDishId
+    const path = '/api/families/' + app.globalData.familyId + '/menu/dishes' + (id ? '/' + id : '')
+    this.setData({ editorSaving: true })
+    this.authRequest(path, { method: id ? 'PUT' : 'POST', data: payload })
+      .then(() => { this.setData({ dishEditorVisible: false }); return this.loadMenu() })
+      .then(() => wx.showToast({ title: id ? '菜品已更新' : '菜品已添加', icon: 'success' }))
+      .catch(err => wx.showToast({ title: err.message, icon: 'none' }))
+      .finally(() => this.setData({ editorSaving: false }))
+  },
+  deleteDishFromList(e) {
+    if (!this.data.customMenu || !this.data.editMode) return
+    const id = Number(e.currentTarget.dataset.id)
+    const name = e.currentTarget.dataset.name || '这道菜'
+    this.confirmDeleteDish(id, name)
+  },
+  deleteDishEditor() {
+    if (!this.data.editorDishId) return
+    this.confirmDeleteDish(this.data.editorDishId, this.data.editorName || '这道菜')
+  },
+  confirmDeleteDish(id, name) {
+    if (!id || !app.globalData.familyId) return
+    wx.showModal({
+      title: '删除菜品',
+      content: '确定删除「' + name + '」吗？',
+      confirmText: '删除',
+      confirmColor: '#b25f50',
+      success: res => {
+        if (!res.confirm) return
+        this.authRequest('/api/families/' + app.globalData.familyId + '/menu/dishes/' + id, { method: 'DELETE' })
+          .then(() => { this.setData({ dishEditorVisible: false }); return this.loadMenu() })
+          .then(() => wx.showToast({ title: '菜品已删除', icon: 'success' }))
+          .catch(err => wx.showToast({ title: err.message, icon: 'none' }))
+      }
+    })
+  },
   input(e) {
     const field = e.currentTarget.dataset.field
     const data = { [field]: e.detail.value }
@@ -614,7 +781,7 @@ Page({
     this.setData(data)
   },
   submitOrder() {
-    if (!app.globalData.familyId) return wx.showToast({ title: '请先创建或加入家庭', icon: 'none' })
+    if (!app.globalData.familyId) return wx.showToast({ title: '请先创建或加入家庭组', icon: 'none' })
     this.setData({ submitting: true })
     this.authRequest('/api/families/' + app.globalData.familyId + '/orders', { method: 'POST', data: { items: this.data.basket, remark: this.data.orderRemark } })
       .then(() => {
@@ -630,16 +797,16 @@ Page({
   closeFamily() { this.setData({ familyVisible: false }) },
   createFamily() {
     const name = (this.data.familyName || '').trim()
-    if (!name) return wx.showToast({ title: '请填写家庭名称', icon: 'none' })
+    if (!name) return wx.showToast({ title: '请填写家庭组名称', icon: 'none' })
     this.authRequest('/api/families', { method: 'POST', data: { name: name } }).then(family => {
       app.globalData.familyId = family.id
       wx.setStorageSync('familyId', family.id)
       this.setData({ familyId: family.id, familyName: '', familyVisible: false })
       return this.loadFamilies()
-    }).then(() => wx.showToast({ title: '家庭已创建', icon: 'success' })).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
+    }).then(() => wx.showToast({ title: '家庭组已创建', icon: 'success' })).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
   },
   createInviteCode() {
-    if (!this.data.familyId) return wx.showToast({ title: '请先创建家庭', icon: 'none' })
+    if (!this.data.familyId) return wx.showToast({ title: '请先创建家庭组', icon: 'none' })
     const familyId = this.data.familyId
     this.authRequest('/api/families/' + familyId + '/invite-code', { method: 'POST' }).then(result => {
       this.inviteCodes = this.inviteCodes || {}
@@ -672,7 +839,7 @@ Page({
       wx.setStorageSync('familyId', family.id)
       this.setData({ joinCode: '', joinPreview: null })
       return this.loadFamilies()
-    }).then(() => wx.showToast({ title: '已加入家庭', icon: 'success' })).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
+    }).then(() => wx.showToast({ title: '已加入家庭组', icon: 'success' })).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
   },
   removeMember(e) {
     const memberId = e.currentTarget.dataset.id

@@ -31,7 +31,7 @@ Page({
     if (!app.globalData.familyId) {
       wx.showModal({
         title: '暂时不能下单',
-        content: '请先创建或加入家庭，之后才能提交和查看家庭订单。',
+        content: '请先创建或加入家庭组，之后才能提交和查看家庭组订单。',
         showCancel: false,
         success: () => wx.navigateBack({ delta: 1 })
       })
@@ -71,7 +71,7 @@ Page({
   },
   submitOrder() {
     if (!this.data.basket.length) return wx.showToast({ title: '还没有选择菜品', icon: 'none' })
-    if (!app.globalData.familyId) return wx.showToast({ title: '请先创建或加入家庭', icon: 'none' })
+    if (!app.globalData.familyId) return wx.showToast({ title: '请先创建或加入家庭组', icon: 'none' })
     this.setData({ submitting: true })
     request('/api/families/' + app.globalData.familyId + '/orders', { method: 'POST', data: { items: this.data.basket, remark: this.data.remark } })
       .then(() => {
