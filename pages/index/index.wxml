@@ -25,7 +25,13 @@ module.exports.initial = function (name) {
       </view>
       <switch checked="{{editMode}}" color="#20302a" bindchange="toggleEditMode"/>
     </view>
-    <view wx:if="{{customMenu && editMode}}" class="menu-custom-add" bindtap="openDishEditor">添加菜品</view>
+    <view wx:if="{{customMenu && editMode}}" class="add-dish-btn" bindtap="openDishEditor">
+      <text class="add-dish-plus">＋</text>
+      <view class="add-dish-copy">
+        <text class="add-dish-title">添加菜品</text>
+        <text class="add-dish-note">填写名称、分类、做法，并可上传图片</text>
+      </view>
+    </view>
     <view class="menu-layout">
       <view class="category-list">
         <view wx:for="{{categories}}" wx:key="id" class="category {{activeCategory === item.name ? 'category-active' : ''}}" data-id="{{item.id}}" data-category="{{item.name}}" catchtap="selectCategory"><view class="category-label"><view>{{item.line1}}</view><view wx:if="{{item.line2}}">{{item.line2}}</view></view></view>
@@ -40,14 +46,15 @@ module.exports.initial = function (name) {
           <view class="dish-heading"><text>{{section.name}}</text><text class="dish-count">{{section.dishes.length}} 道</text></view>
           <block wx:for="{{section.dishes}}" wx:for-item="item" wx:key="id">
           <view class="dish-card" style="display:flex;align-items:center;min-height:150rpx;margin:0;padding:14rpx 0;border:0;border-bottom:1rpx solid #f0f2f0;box-shadow:none">
+            <view wx:if="{{editMode}}" class="dish-check {{item.selected ? 'dish-check-on' : ''}}" data-id="{{item.id}}" catchtap="toggleDishSelect">{{item.selected ? '✓' : ''}}</view>
             <image class="dish-image" style="flex:none;width:142rpx;height:142rpx;border-radius:20rpx" src="{{item.imageUrl || defaultDishUrl}}" mode="aspectFill" lazy-load="true" fade-show="true" data-image="{{item.imageUrl || defaultDishUrl}}" catchtap="previewDishImage"></image>
             <view class="dish-info" style="flex:1;min-width:0;padding:0 14rpx" data-id="{{item.id}}" catchtap="openDishDetail"><view class="dish-name-row"><text class="dish-name">{{item.name}}</text><view wx:if="{{customMenu && editMode}}" class="dish-ops"><text class="dish-edit" data-id="{{item.id}}" catchtap="openDishEditor">编辑</text><text class="dish-delete" data-id="{{item.id}}" data-name="{{item.name}}" catchtap="deleteDishFromList">删除</text></view></view><view class="dish-category dish-description">{{item.description}}</view><view class="dish-recipe-link">{{item.recipeSteps.length ? '查看做法 >>' : '查看介绍 >>'}}</view></view>
-            <view class="dish-action" style="flex:none;margin:0;min-height:0"><view wx:if="{{item.quantity}}" class="stepper"><text class="step" data-id="{{item.id}}" catchtap="decreaseDish">−</text><text class="quantity">{{item.quantity}}</text><text class="step" data-id="{{item.id}}" catchtap="increaseDish">＋</text></view><view wx:else class="add-circle" data-id="{{item.id}}" catchtap="addDish">＋</view></view>
+            <view wx:if="{{!editMode}}" class="dish-action" style="flex:none;margin:0;min-height:0"><view wx:if="{{item.quantity}}" class="stepper"><text class="step" data-id="{{item.id}}" catchtap="decreaseDish">−</text><text class="quantity">{{item.quantity}}</text><text class="step" data-id="{{item.id}}" catchtap="increaseDish">＋</text></view><view wx:else class="add-circle" data-id="{{item.id}}" catchtap="addDish">＋</view></view>
           </view>
           </block>
           </view>
         </block>
-        <view wx:if="{{basketCount}}" class="basket-safe-space"></view>
+        <view wx:if="{{basketCount || editMode}}" class="basket-safe-space"></view>
         </view>
       </scroll-view>
     </view>
@@ -74,7 +81,7 @@ module.exports.initial = function (name) {
     <view wx:if="{{!loggedIn}}" class="guest-home">
       <image class="guest-avatar" src="/assets/default-avatar.jpg" mode="aspectFill"></image>
       <view class="guest-title">未登录</view>
-      <view class="guest-subtitle">登录后可以管理家庭组、查看订单，并用你的称呼点菜</view>
+      <view class="guest-subtitle">登录后可以管理家庭组、查看订单和点菜</view>
       <view wx:if="{{loginError}}" class="login-error">{{loginError}}</view>
       <button class="login-button guest-login" loading="{{loginLoading}}" disabled="{{loginLoading}}" bindtap="beginLogin">{{loginLoading ? '正在登录…' : '微信登录'}}</button>
       <view class="login-tip">仅使用微信身份识别你的家庭组和点菜记录</view>
@@ -158,9 +165,14 @@ module.exports.initial = function (name) {
   </scroll-view>
 </view>
 
+<view wx:if="{{activeTab === 'menu' && editMode}}" class="batch-bar">
+  <text class="batch-all" bindtap="toggleSelectAll">{{allVisibleSelected ? '取消全选' : '全选'}}</text>
+  <text class="batch-count">已选 {{selectedIds.length}} 道</text>
+  <view class="batch-delete {{selectedIds.length ? '' : 'batch-delete-disabled'}}" bindtap="batchDeleteDishes">删除所选</view>
+</view>
 <view class="bottom-nav"><view class="nav-item {{activeTab === 'menu' ? 'nav-active' : ''}}" data-tab="menu" catchtap="switchTab"><text>▦</text><label>菜谱</label></view><view class="nav-item {{activeTab === 'orders' ? 'nav-active' : ''}}" data-tab="orders" catchtap="switchTab"><text>▤</text><label>订单</label></view><view class="nav-item {{activeTab === 'family' ? 'nav-active' : ''}}" data-tab="family" catchtap="switchTab"><text>♧</text><label>我的</label></view></view>
 
-<view wx:if="{{activeTab === 'menu' && basketCount}}" class="basket-bar"><view class="basket-summary" bindtap="openBasket"><text class="basket-label">已选菜品</text><text class="basket-total">{{basketTotal}} 份</text></view><view class="basket-button" bindtap="openOrder">去下单</view></view>
+<view wx:if="{{activeTab === 'menu' && basketCount && !editMode}}" class="basket-bar"><view class="basket-summary" bindtap="openBasket"><text class="basket-label">已选菜品</text><text class="basket-total">{{basketTotal}} 份</text></view><view class="basket-button" bindtap="openOrder">去下单</view></view>
 
 <view wx:if="{{basketVisible}}" class="overlay" style="position:fixed;top:0;right:0;bottom:0;left:0;height:100vh;display:flex;align-items:flex-end" bindtap="closeBasket"><view class="sheet basket-sheet" catchtap="noop"><view class="sheet-head"><text class="sheet-title">已选菜单</text><text class="sheet-clear" bindtap="clearBasket">清空</text></view><scroll-view class="basket-scroll" scroll-y><view wx:for="{{basket}}" wx:for-item="basketItem" wx:key="dishId" class="basket-row"><image class="basket-item-image" style="flex:none;width:72rpx;height:72rpx;margin-right:16rpx;border-radius:12rpx" src="{{basketItem.imageUrl || defaultDishUrl}}" mode="aspectFill"></image><view class="basket-dish">{{basketItem.dishName}}</view><view class="stepper"><text class="step" data-id="{{basketItem.dishId}}" bindtap="decreaseDish">−</text><text class="quantity">{{basketItem.quantity}}</text><text class="step" data-id="{{basketItem.dishId}}" bindtap="increaseDish">＋</text></view></view></scroll-view><button class="primary-button sheet-button" bindtap="closeBasket">确认菜单</button></view></view>
 
@@ -183,7 +195,7 @@ module.exports.initial = function (name) {
         <text class="recipe-text">{{item}}</text>
       </view>
     </view>
-    <view class="dish-detail-action" data-id="{{dishDetail.id}}" bindtap="addDishFromDetail">加入菜单</view>
+    <view wx:if="{{!editMode}}" class="dish-detail-action" data-id="{{dishDetail.id}}" bindtap="addDishFromDetail">加入菜单</view>
   </view>
 </view>
 
@@ -200,17 +212,30 @@ module.exports.initial = function (name) {
       </picker>
       <view class="form-label">描述 <text class="optional">选填</text></view>
       <input class="form-input" value="{{editorDescription}}" data-field="editorDescription" bindinput="input" maxlength="200"/>
-      <view class="form-label">做法 <text class="optional">选填，一行一步</text></view>
+      <view class="form-label editor-label-row"><text>做法 <text class="optional">选填，一行一步</text></text><text wx:if="{{editorRecipe}}" class="editor-clear" bindtap="clearEditorRecipe">清空</text></view>
       <textarea class="form-textarea" value="{{editorRecipe}}" data-field="editorRecipe" bindinput="input" maxlength="4000"></textarea>
-      <view class="form-label">顺序</view>
+      <view class="form-label">顺序(值越大越靠前)</view>
       <input class="form-input" type="number" value="{{editorSort}}" data-field="editorSort" bindinput="input"/>
+      <view class="form-label">图片</view>
+      <view wx:if="{{editorImagePreview}}" class="editor-image-row">
+        <image class="editor-image" src="{{editorImagePreview}}" mode="aspectFill"></image>
+        <view class="editor-upload" bindtap="chooseEditorImage">上传图片</view>
+        <view class="editor-clear" bindtap="clearEditorImage">清空</view>
+      </view>
+      <view wx:else class="empty-photo" bindtap="chooseEditorImage">
+        <view class="empty-photo-art">
+          <text class="empty-spark">+</text>
+          <view class="empty-fork"></view>
+          <view class="empty-plate"><view class="empty-plate-inner"></view></view>
+          <view class="empty-leaf"></view>
+          <view class="empty-flame"></view>
+        </view>
+        <text class="empty-photo-title">菜品图片未上传</text>
+        <text class="empty-photo-hint">点击上传菜品照片</text>
+      </view>
+      <view class="editor-scroll-end"></view>
     </scroll-view>
-    <view class="editor-image-row">
-      <image class="editor-image" src="{{editorImagePreview || defaultDishUrl}}" mode="aspectFill"></image>
-      <view class="editor-upload" bindtap="chooseEditorImage">上传图片</view>
-    </view>
     <view class="editor-footer">
-      <button wx:if="{{editorDishId}}" class="editor-delete-btn" bindtap="deleteDishEditor">删除</button>
       <button class="primary-button editor-save" loading="{{editorSaving}}" bindtap="saveDishEditor">保存</button>
     </view>
   </view>

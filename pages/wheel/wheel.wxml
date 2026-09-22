@@ -62,7 +62,7 @@
       <view class="editor-add {{draft.length >= 16 ? 'disabled' : ''}}" bindtap="addDraft">{{draft.length >= 16 ? '已到上限 16 家' : '+ 添加餐厅'}}</view>
     </view>
     <view wx:if="{{!loggedIn}}" class="panel-login-tip">
-      登录后可以自定义自己的转盘
+      登录后可以自定义转盘
       <text class="panel-login-link" bindtap="goLogin">去登录</text>
     </view>
   </view>

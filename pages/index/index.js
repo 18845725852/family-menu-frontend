@@ -102,6 +102,8 @@ Page({
     avatarSaving: false,
     customMenu: false,
     editMode: false,
+    selectedIds: [],
+    allVisibleSelected: false,
     dishEditorVisible: false,
     editorDishId: null,
     editorName: '',
@@ -136,14 +138,16 @@ Page({
   onShareAppMessage() {
     return {
       title: '今晚吃什么？一起选菜吧',
-      path: '/pages/index/index'
+      path: '/pages/index/index',
+      imageUrl: '/assets/share-cover.jpg'
     }
   },
 
   onShareTimeline() {
     return {
       title: '今晚吃什么？一起选菜吧',
-      query: ''
+      query: '',
+      imageUrl: '/assets/share-cover.jpg'
     }
   },
 
@@ -334,12 +338,16 @@ Page({
         }))
         const sameMenu = customMenu === this.data.customMenu
         const basket = sameMenu ? this.data.basket : []
+        const alive = {}
+        normalizedDishes.forEach(dish => { alive[dish.id] = true })
+        const selectedIds = (sameMenu ? (this.data.selectedIds || []) : []).filter(id => alive[id])
         this.setData({
           categories: list,
           dishes: normalizedDishes,
           activeCategory: activeCategory,
           customMenu: customMenu,
           editMode: customMenu ? this.data.editMode : false,
+          selectedIds: customMenu ? selectedIds : [],
           basket: basket,
           basketCount: basket.length,
           basketTotal: basket.length
@@ -547,15 +555,18 @@ Page({
     const quantities = {}
     this.data.basket.forEach(item => { quantities[item.dishId] = item.quantity })
     const keyword = (this.data.searchKeyword || '').trim().toLowerCase()
+    const selected = {}
+    ;(this.data.selectedIds || []).forEach(id => { selected[Number(id)] = true })
     const list = this.data.dishes
       .filter(dish => !keyword || String(dish.name || '').toLowerCase().indexOf(keyword) >= 0)
-      .map(dish => Object.assign({}, dish, { quantity: quantities[dish.id] || 0 }))
+      .map(dish => Object.assign({}, dish, { quantity: quantities[dish.id] || 0, selected: !!selected[Number(dish.id)] }))
     const sections = this.data.categories.map(category => ({
       id: category.id,
       name: category.name,
       dishes: list.filter(dish => dish.category === category.name)
     })).filter(section => section.dishes.length)
-    this.setData({ displayDishes: list, dishSections: sections }, () => {
+    const allVisibleSelected = list.length > 0 && list.every(dish => dish.selected)
+    this.setData({ displayDishes: list, dishSections: sections, allVisibleSelected: allVisibleSelected }, () => {
       this.measureDishSections()
       if (resetScroll && sections.length) {
         this.setData({ activeCategory: sections[0].name, scrollIntoView: '' }, () => {
@@ -588,6 +599,7 @@ Page({
   increaseDish(e) { this.changeDish(e.currentTarget.dataset.id, 1) },
   decreaseDish(e) { this.changeDish(e.currentTarget.dataset.id, -1) },
   changeDish(id, delta) {
+    if (this.data.editMode) return
     const dishes = this.data.dishes
     const dish = dishes.find(item => Number(item.id) === Number(id))
     if (!dish) return
@@ -643,7 +655,17 @@ Page({
   closeOrder() { this.setData({ orderVisible: false }) },
 
   toggleEditMode(e) {
-    this.setData({ editMode: !!(e.detail && e.detail.value) })
+    const editMode = !!(e.detail && e.detail.value)
+    const data = { editMode: editMode, basketVisible: false, orderVisible: false }
+    if (editMode) {
+      data.basket = []
+      data.basketCount = 0
+      data.basketTotal = 0
+    } else {
+      data.selectedIds = []
+      data.allVisibleSelected = false
+    }
+    this.setData(data, this.refreshDisplayDishes)
   },
   toggleCustomMenu(e) {
     const enabled = !!(e.detail && e.detail.value)
@@ -727,6 +749,12 @@ Page({
     if (wx.chooseMedia) wx.chooseMedia(options)
     else wx.chooseImage(options)
   },
+  clearEditorImage() {
+    this.setData({ editorImageUrl: '', editorImagePreview: '' })
+  },
+  clearEditorRecipe() {
+    this.setData({ editorRecipe: ' ' }, () => this.setData({ editorRecipe: '' }))
+  },
   saveDishEditor() {
     const name = (this.data.editorName || '').trim()
     const category = this.data.editorCategory
@@ -736,7 +764,7 @@ Page({
       category: category,
       description: (this.data.editorDescription || '').trim(),
       recipe: (this.data.editorRecipe || '').trim(),
-      imageUrl: this.data.editorImageUrl || null,
+      imageUrl: this.data.editorImageUrl || '',
       sort: Number(this.data.editorSort || 0)
     }
     const id = this.data.editorDishId
@@ -747,6 +775,59 @@ Page({
       .then(() => wx.showToast({ title: id ? '菜品已更新' : '菜品已添加', icon: 'success' }))
       .catch(err => wx.showToast({ title: err.message, icon: 'none' }))
       .finally(() => this.setData({ editorSaving: false }))
+  },
+  toggleDishSelect(e) {
+    if (!this.data.editMode) return
+    const id = Number(e.currentTarget.dataset.id)
+    const ids = (this.data.selectedIds || []).slice()
+    const index = ids.findIndex(item => Number(item) === id)
+    if (index >= 0) ids.splice(index, 1)
+    else ids.push(id)
+    this.setData({ selectedIds: ids }, this.refreshDisplayDishes)
+  },
+  toggleSelectAll() {
+    if (!this.data.editMode) return
+    const visible = this.data.displayDishes || []
+    if (!visible.length) return
+    if (this.data.allVisibleSelected) {
+      const visibleIds = {}
+      visible.forEach(dish => { visibleIds[Number(dish.id)] = true })
+      const ids = (this.data.selectedIds || []).filter(id => !visibleIds[Number(id)])
+      this.setData({ selectedIds: ids }, this.refreshDisplayDishes)
+      return
+    }
+    const ids = (this.data.selectedIds || []).slice()
+    visible.forEach(dish => {
+      if (!ids.some(id => Number(id) === Number(dish.id))) ids.push(dish.id)
+    })
+    this.setData({ selectedIds: ids }, this.refreshDisplayDishes)
+  },
+  batchDeleteDishes() {
+    const ids = this.data.selectedIds || []
+    if (!this.data.editMode || !ids.length || !app.globalData.familyId) {
+      if (!ids.length) wx.showToast({ title: '请先选择菜品', icon: 'none' })
+      return
+    }
+    wx.showModal({
+      title: '批量删除',
+      content: '确定删除选中的 ' + ids.length + ' 道菜吗？只影响当前家庭菜谱。',
+      confirmText: '删除',
+      confirmColor: '#b25f50',
+      success: res => {
+        if (!res.confirm) return
+        this.authRequest('/api/families/' + app.globalData.familyId + '/menu/dishes/batch-delete', { method: 'POST', data: { ids: ids } })
+          .then(result => {
+            this.setData({ selectedIds: [] })
+            const blocked = (result && result.blocked) || []
+            const deleted = result ? result.deleted : ids.length
+            return this.loadMenu().then(() => {
+              if (blocked.length) wx.showToast({ title: '已删除' + deleted + '道，' + blocked.length + '道有订单未删', icon: 'none' })
+              else wx.showToast({ title: '已删除' + deleted + '道菜', icon: 'success' })
+            })
+          })
+          .catch(err => wx.showToast({ title: err.message, icon: 'none' }))
+      }
+    })
   },
   deleteDishFromList(e) {
     if (!this.data.customMenu || !this.data.editMode) return

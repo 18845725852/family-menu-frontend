@@ -45,13 +45,15 @@ Page({
   onShareAppMessage() {
     return {
       title: '一起看看今晚吃什么',
-      path: '/pages/index/index'
+      path: '/pages/index/index',
+      imageUrl: '/assets/share-cover.jpg'
     }
   },
   onShareTimeline() {
     return {
       title: '一起看看今晚吃什么',
-      query: ''
+      query: '',
+      imageUrl: '/assets/share-cover.jpg'
     }
   },
   inputRemark(e) { this.setData({ remark: e.detail.value }) },

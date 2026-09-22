@@ -127,14 +127,16 @@ Page({
   onShareAppMessage() {
     return {
       title: '不想做饭？转盘帮你决定吃什么',
-      path: '/pages/wheel/wheel'
+      path: '/pages/wheel/wheel',
+      imageUrl: '/assets/share-cover.jpg'
     }
   },
 
   onShareTimeline() {
     return {
       title: '不想做饭？转盘帮你决定吃什么',
-      query: ''
+      query: '',
+      imageUrl: '/assets/share-cover.jpg'
     }
   },
 
