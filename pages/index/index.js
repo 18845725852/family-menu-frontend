@@ -415,6 +415,7 @@ Page({
       url: (app.globalData.apiBaseUrl || '') + '/api/uploads/image',
       filePath: tempPath,
       name: 'file',
+      formData: { category: 'avatars' },
       header: app.globalData.sessionToken ? { Authorization: 'Bearer ' + app.globalData.sessionToken } : {},
       success: (res) => {
         let body = {}
