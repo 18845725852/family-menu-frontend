@@ -3,7 +3,7 @@
   <view class="topbar">
     <view>
       <view class="title">外出吃什么</view>
-      <view class="subtitle">{{loggedIn ? '这是你的专属转盘，改完只有自己看得到' : '别纠结了，让命运替你点单'}}</view>
+      <view class="subtitle">{{hasFamily ? '家庭转盘，选项和结果全家人都能看到' : (loggedIn ? '加入家庭后，转盘和结果才会全家共享' : '别纠结了，让命运替你点单')}}</view>
     </view>
     <view class="back-btn" bindtap="goBack"><text class="back-icon">‹</text><text>返回菜谱</text></view>
   </view>
@@ -39,14 +39,41 @@
     <view wx:elif="{{error}}" class="status-text error">{{error}}</view>
   </view>
 
+  <view wx:if="{{hasFamily}}" class="panel">
+    <view class="panel-head">
+      <view>
+        <view class="panel-title">家庭转盘记录</view>
+        <view class="panel-note">最近 5 次</view>
+      </view>
+      <view wx:if="{{spins.length}}" class="panel-link" bindtap="openHistory">查看所有记录</view>
+    </view>
+    <view wx:if="{{recentSpins.length}}" class="spin-list">
+      <view wx:for="{{recentSpins}}" wx:key="id" class="spin-row">
+        <image class="spin-avatar" src="{{item.avatarUrl || defaultAvatarUrl}}" mode="aspectFill"></image>
+        <view class="spin-main">
+          <view class="spin-line">
+            <text class="spin-user">{{item.nickname}}</text>
+            <text class="spin-action">抽到</text>
+            <text class="spin-restaurant">{{item.restaurantName}}</text>
+          </view>
+          <view class="spin-time">{{item.timeText}}</view>
+        </view>
+      </view>
+    </view>
+    <view wx:else class="panel-login-tip">还没有记录。转一下，家里人都能看到。</view>
+  </view>
+
   <view class="panel">
     <view class="panel-head">
       <view>
-        <view class="panel-title">{{loggedIn ? '我的餐厅' : '可选餐厅'}}</view>
-        <view class="panel-note">{{editing ? draft.length : restaurants.length}} / 16 家，至少 3 家</view>
+        <view class="panel-title">{{hasFamily ? '家庭餐厅' : '可选餐厅'}}</view>
+        <view wx:if="{{editing}}" class="panel-note">{{draft.length}} / 16 家，至少 3 家</view>
+        <view wx:elif="{{hasFamily && customized}}" class="panel-note">全家共用，改完其他人也能看到</view>
+        <view wx:elif="{{hasFamily}}" class="panel-note">当前是默认餐厅，保存后变成家庭转盘</view>
+        <view wx:else class="panel-note">{{restaurants.length}} 家</view>
       </view>
-      <view wx:if="{{loggedIn && !editing}}" class="panel-edit" bindtap="startEdit">编辑</view>
-      <view wx:elif="{{loggedIn && editing}}" class="panel-actions">
+      <view wx:if="{{hasFamily && !editing}}" class="panel-edit" bindtap="startEdit">编辑</view>
+      <view wx:elif="{{hasFamily && editing}}" class="panel-actions">
         <view class="panel-cancel" bindtap="cancelEdit">取消</view>
         <view class="panel-save {{saving ? 'disabled' : ''}}" bindtap="saveDraft">{{saving ? '保存中' : '保存'}}</view>
       </view>
@@ -62,9 +89,42 @@
       <view class="editor-add {{draft.length >= 16 ? 'disabled' : ''}}" bindtap="addDraft">{{draft.length >= 16 ? '已到上限 16 家' : '+ 添加餐厅'}}</view>
     </view>
     <view wx:if="{{!loggedIn}}" class="panel-login-tip">
-      登录后可以自定义转盘
+      登录并加入家庭后，可以自定义家庭转盘
       <text class="panel-login-link" bindtap="goLogin">去登录</text>
+    </view>
+    <view wx:elif="{{loggedIn && !hasFamily}}" class="panel-login-tip">
+      先创建或加入家庭组，转盘才会全家共享
+      <text class="panel-login-link" bindtap="goFamily">去我的家庭</text>
     </view>
   </view>
 </view>
 </scroll-view>
+
+<view wx:if="{{historyVisible}}" class="history-mask" bindtap="closeHistory">
+  <view class="history-card" catchtap="noop">
+    <view class="history-head">
+      <view>
+        <view class="panel-title">全部转盘记录</view>
+        <view class="panel-note">{{historyLoading ? '正在读取' : '共 '}}{{historyLoading ? '' : allSpins.length}}{{historyLoading ? '' : ' 条'}}</view>
+      </view>
+      <view class="history-close" bindtap="closeHistory">关闭</view>
+    </view>
+    <scroll-view class="history-scroll" scroll-y show-scrollbar="{{false}}" style="height: {{historyHeight}}px;">
+      <view wx:if="{{historyLoading && !allSpins.length}}" class="panel-login-tip">正在读取全部记录…</view>
+      <view wx:elif="{{!allSpins.length}}" class="panel-login-tip">还没有记录</view>
+      <view wx:else class="spin-list">
+        <view wx:for="{{allSpins}}" wx:key="id" class="spin-row">
+          <image class="spin-avatar" src="{{item.avatarUrl || defaultAvatarUrl}}" mode="aspectFill"></image>
+          <view class="spin-main">
+            <view class="spin-line">
+              <text class="spin-user">{{item.nickname}}</text>
+              <text class="spin-action">抽到</text>
+              <text class="spin-restaurant">{{item.restaurantName}}</text>
+            </view>
+            <view class="spin-time">{{item.timeText}}</view>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+</view>

@@ -108,3 +108,20 @@
   font-size: 24rpx;
   font-weight: 700;
 }
+
+.spin-list { display:flex; flex-direction:column; }
+.spin-row { display:flex; align-items:center; gap:16rpx; padding:16rpx 0; border-bottom:1rpx solid #f0f3ef; }
+.spin-row:last-child { border-bottom:none; padding-bottom:0; }
+.spin-avatar { width:64rpx; height:64rpx; border-radius:50%; background:#f4f6f2; flex:none; }
+.spin-main { flex:1; min-width:0; }
+.spin-line { display:flex; align-items:baseline; min-width:0; }
+.spin-user { max-width:180rpx; color:#20302a; font-size:26rpx; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.spin-action { flex:none; margin:0 8rpx; color:#8a988f; font-size:22rpx; }
+.spin-restaurant { flex:1; min-width:0; color:#20302a; font-size:26rpx; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.spin-time { margin-top:4rpx; color:#a0aaa3; font-size:22rpx; }
+
+.panel-link { flex: none; color: #b37e31; font-size: 24rpx; font-weight: 700; }
+.history-mask { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 40; background: rgba(32,48,42,.45); display: flex; align-items: flex-end; justify-content: center; }
+.history-card { width: 100%; background: #fff; border-radius: 28rpx 28rpx 0 0; padding: 28rpx 28rpx calc(24rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.history-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12rpx; }
+.history-close { padding: 10rpx 18rpx; border-radius: 999rpx; background: #f4f6f2; color: #536158; font-size: 23rpx; font-weight: 700; }

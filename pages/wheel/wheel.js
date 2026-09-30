@@ -17,7 +17,8 @@ function request(path, options) {
         const body = res.data || {}
         if (res.statusCode >= 200 && res.statusCode < 300 && body.success !== false) resolve(body.data)
         else {
-          const error = new Error(body.message || (res.statusCode === 401 ? '请先登录' : '请求失败'))
+          const detail = body.data && body.data.message
+          const error = new Error(body.message || detail || (res.statusCode === 401 ? '请先登录' : '请求失败'))
           error.statusCode = res.statusCode
           reject(error)
         }
@@ -27,6 +28,30 @@ function request(path, options) {
       }
     })
   })
+}
+
+
+function pad(value) {
+  return value < 10 ? '0' + value : '' + value
+}
+
+function formatSpinTime(value) {
+  if (!value) return ''
+  const text = String(value).replace('T', ' ')
+  const match = text.match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/)
+  if (!match) return text.slice(0, 16)
+  const now = new Date()
+  const today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate())
+  const day = match[1] + '-' + match[2] + '-' + match[3]
+  if (day === today) return '今天 ' + match[4] + ':' + match[5]
+  if (String(now.getFullYear()) === match[1]) return match[2] + '-' + match[3] + ' ' + match[4] + ':' + match[5]
+  return day + ' ' + match[4] + ':' + match[5]
+}
+
+function resolveMediaUrl(value) {
+  if (!value) return ''
+  if (/^https?:\/\//.test(value)) return value
+  return (app.globalData.apiBaseUrl || '') + (value.charAt(0) === '/' ? value : '/' + value)
 }
 
 const COLORS = ['#f5b971', '#f08a5d', '#f6bd60', '#8ecae6', '#90be6d', '#b8c0ff', '#ffcad4', '#a0c4ff', '#ffd166', '#95d5b2']
@@ -90,6 +115,15 @@ Page({
     loading: true,
     error: '',
     loggedIn: false,
+    hasFamily: false,
+    customized: false,
+    spins: [],
+    recentSpins: [],
+    allSpins: [],
+    historyVisible: false,
+    historyLoading: false,
+    historyHeight: 420,
+    defaultAvatarUrl: '/assets/default-avatar.jpg',
     editing: false,
     saving: false,
     draft: [],
@@ -98,8 +132,13 @@ Page({
 
   onLoad() {
     const windowInfo = (wx.getWindowInfo && wx.getWindowInfo()) || wx.getSystemInfoSync() || {}
-    this.setData({ windowHeight: windowInfo.windowHeight || 700 })
-    this.loadRestaurants()
+    const windowHeight = windowInfo.windowHeight || 700
+    this.setData({ windowHeight: windowHeight, historyHeight: Math.round(windowHeight * 0.58) })
+  },
+
+  onShow() {
+    if (this.data.editing || this.data.spinning) return
+    this.loadWheel()
   },
 
   onReady() {
@@ -178,40 +217,66 @@ Page({
     })
   },
 
-  loadRestaurants() {
-    const loggedIn = this.isLoggedIn()
-    this.setData({ loading: true, error: '', loggedIn: loggedIn, editing: false })
-    const loadGlobal = () => request('/api/restaurants').then(restaurants => {
+  decorateSpin(spin) {
+    spin = spin || {}
+    return {
+      id: spin.id,
+      nickname: spin.nickname || '家人',
+      restaurantName: spin.restaurantName || '',
+      avatarUrl: resolveMediaUrl(spin.avatarUrl),
+      timeText: formatSpinTime(spin.createdAt)
+    }
+  },
+
+  loadGlobalRestaurants() {
+    return request('/api/restaurants').then(restaurants => {
       this.applyRestaurants(restaurants || [])
+      this.setData({ hasFamily: false, customized: false, spins: [], recentSpins: [] })
     })
-    if (!loggedIn) {
-      return loadGlobal().catch(err => {
+  },
+
+  loadWheel() {
+    const loggedIn = this.isLoggedIn()
+    const familyId = loggedIn ? app.globalData.familyId : null
+    const ticket = (this.loadTicket || 0) + 1
+    this.loadTicket = ticket
+    this.setData({ loading: true, error: '', loggedIn: loggedIn, editing: false })
+    if (!loggedIn || !familyId) {
+      return this.loadGlobalRestaurants().catch(err => {
+        if (ticket !== this.loadTicket) return
         this.setData({ error: err.message })
       }).finally(() => {
-        this.setData({ loading: false })
+        if (ticket === this.loadTicket) this.setData({ loading: false })
       })
     }
-    return request('/api/me/wheel-restaurants').then(restaurants => {
-      const list = restaurants || []
-      if (list.length) {
-        this.applyRestaurants(list)
-        return
-      }
-      return loadGlobal()
+    return request('/api/families/' + familyId + '/wheel').then(data => {
+      if (ticket !== this.loadTicket) return
+      data = data || {}
+      this.applyRestaurants(data.restaurants || [])
+      const spins = (data.spins || []).map(item => this.decorateSpin(item))
+      this.setData(Object.assign({
+        hasFamily: true,
+        customized: !!data.customized
+      }, this.spinLists(spins)))
     }).catch(err => {
+      if (ticket !== this.loadTicket) return
       if (err.statusCode === 401) {
-        this.setData({ loggedIn: false })
-        return loadGlobal()
+        this.setData({ loggedIn: false, hasFamily: false, spins: [], recentSpins: [] })
+        return this.loadGlobalRestaurants()
       }
-      this.setData({ error: err.message })
+      this.setData({ error: err.message, hasFamily: false, spins: [], recentSpins: [] })
     }).finally(() => {
-      this.setData({ loading: false })
+      if (ticket === this.loadTicket) this.setData({ loading: false })
     })
   },
 
   startEdit() {
     if (!this.isLoggedIn()) {
       wx.showToast({ title: '请先到「我的」登录', icon: 'none' })
+      return
+    }
+    if (!this.data.hasFamily || !app.globalData.familyId) {
+      wx.showToast({ title: '请先创建或加入家庭组', icon: 'none' })
       return
     }
     const draft = (this.data.restaurants || []).map((item, index) => ({
@@ -277,14 +342,27 @@ Page({
       wx.showToast({ title: '餐厅数量需要 3 到 16 家', icon: 'none' })
       return
     }
+    if (!app.globalData.familyId) {
+      wx.showToast({ title: '请先创建或加入家庭组', icon: 'none' })
+      return
+    }
     this.setData({ saving: true })
-    request('/api/me/wheel-restaurants', {
+    request('/api/families/' + app.globalData.familyId + '/wheel/restaurants', {
       method: 'PUT',
       data: { items: names.map(name => ({ name: name })) }
-    }).then(restaurants => {
-      this.applyRestaurants(restaurants || [])
-      this.setData({ editing: false, draft: [], result: null, hasSpun: false })
-      wx.showToast({ title: '已保存到我的转盘', icon: 'success' })
+    }).then(data => {
+      data = data || {}
+      this.applyRestaurants(data.restaurants || [])
+      const spins = (data.spins || []).map(item => this.decorateSpin(item))
+      this.setData(Object.assign({
+        editing: false,
+        draft: [],
+        result: null,
+        hasSpun: false,
+        hasFamily: true,
+        customized: true
+      }, this.spinLists(spins)))
+      wx.showToast({ title: '已保存，家里人都能看到', icon: 'success' })
     }).catch(err => {
       wx.showToast({ title: err.message || '保存失败', icon: 'none' })
     }).finally(() => {
@@ -300,6 +378,73 @@ Page({
     app.globalData.openFamilyTab = true
     app.globalData.openLogin = true
     wx.navigateBack({ delta: 1 })
+  },
+
+  goFamily() {
+    app.globalData.openFamilyTab = true
+    wx.navigateBack({ delta: 1 })
+  },
+
+  spinLists(list) {
+    const spins = list || []
+    return {
+      spins: spins,
+      recentSpins: spins.slice(0, 5)
+    }
+  },
+
+  openHistory() {
+    if (!this.data.spins.length) return
+    this.setData({
+      historyVisible: true,
+      historyLoading: true,
+      allSpins: this.data.spins
+    })
+    if (!app.globalData.familyId) {
+      this.setData({ historyLoading: false })
+      return
+    }
+    request('/api/families/' + app.globalData.familyId + '/wheel/spins').then(list => {
+      if (!this.data.historyVisible) return
+      this.setData({
+        allSpins: (list || []).map(item => this.decorateSpin(item)),
+        historyLoading: false
+      })
+    }).catch(err => {
+      if (!this.data.historyVisible) return
+      this.setData({ historyLoading: false })
+      if (err.statusCode === 404) return
+      wx.showToast({ title: err.message || '全部记录加载失败', icon: 'none' })
+    })
+  },
+
+  closeHistory() {
+    this.setData({ historyVisible: false })
+  },
+
+  noop() {},
+
+  recordSpin(result) {
+    if (!this.data.hasFamily || !app.globalData.familyId || !result) return
+    this.loadTicket = (this.loadTicket || 0) + 1
+    request('/api/families/' + app.globalData.familyId + '/wheel/spins', {
+      method: 'POST',
+      data: { name: result.name }
+    }).then(spin => {
+      const item = this.decorateSpin(spin)
+      const spins = [item].concat(this.data.spins || []).filter((row, index, list) => {
+        return list.findIndex(candidate => candidate.id === row.id) === index
+      })
+      const patch = this.spinLists(spins)
+      if (this.data.historyVisible) {
+        patch.allSpins = [item].concat(this.data.allSpins || []).filter((row, index, list) => {
+          return list.findIndex(candidate => candidate.id === row.id) === index
+        })
+      }
+      this.setData(patch)
+    }).catch(err => {
+      wx.showToast({ title: err.message || '结果没记上', icon: 'none' })
+    })
   },
 
   spinWheel() {
@@ -324,7 +469,9 @@ Page({
       const { timing, Easing, cancelAnimation, runOnJS } = wx.worklet
       const onDone = (finished) => {
         if (!finished) return
-        this.setData({ spinning: false, result: this.pendingResult, hasSpun: true })
+        const landed = this.pendingResult
+        this.setData({ spinning: false, result: landed, hasSpun: true })
+        this.recordSpin(landed)
       }
       cancelAnimation(this.pointerRotation)
       const easing = Easing.bezier ? Easing.bezier(0.22, 0.61, 0.36, 1) : Easing.out(Easing.cubic)
@@ -339,6 +486,7 @@ Page({
       this.setData({ pointerRotation: nextRotation })
       setTimeout(() => {
         this.setData({ spinning: false, result: result, hasSpun: true })
+        this.recordSpin(result)
       }, duration + 200)
     }
     this.setData({
