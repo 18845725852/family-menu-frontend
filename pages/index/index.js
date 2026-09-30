@@ -98,7 +98,7 @@ Page({
     previewImageUrl: '',
     headerTop: 98,
     profileAvatarUrl: '',
-    defaultAvatarUrl: '/assets/default-avatar.jpg',
+    defaultAvatarUrl: '/assets/default-avatar2.png',
     avatarSaving: false,
     customMenu: false,
     editMode: false,
