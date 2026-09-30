@@ -26,7 +26,7 @@ function request(path, options) {
 }
 
 Page({
-  data: { basket: [], basketCount: 0, operatorName: '微信用户', operatorInitial: '微', operatorAvatar: '', defaultAvatarUrl: '/assets/default-avatar2.png', remark: '', submitting: false },
+  data: { basket: [], basketCount: 0, operatorName: '微信用户', operatorInitial: '微', operatorAvatar: '', defaultAvatarUrl: '/assets/default-avatar2.jpg', remark: '', submitting: false },
   onLoad() {
     if (!app.globalData.familyId) {
       wx.showModal({
