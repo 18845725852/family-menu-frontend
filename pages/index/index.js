@@ -96,6 +96,7 @@ Page({
     loggedIn: false,
     authReady: false,
     loading: true,
+    menuRefreshing: false,
     submitting: false,
     error: '',
     previewImageVisible: false,
@@ -318,9 +319,18 @@ Page({
   },
 
   onPullDownRefresh() {
-    const tasks = [this.loadMenu()]
-    if (this.isLoggedIn()) tasks.push(this.loadOrders())
-    Promise.all(tasks).finally(() => wx.stopPullDownRefresh())
+    if (this.menuRefreshPromise) return this.menuRefreshPromise
+    this.setData({ menuRefreshing: true })
+    const tasks = [() => this.loadMenu()]
+    if (this.isLoggedIn()) tasks.push(() => this.loadOrders())
+    this.menuRefreshPromise = Promise.all(tasks.map(task => Promise.resolve().then(task).catch(err => {
+      this.setData({ error: err.message || '刷新失败，请重试' })
+    }))).finally(() => {
+      this.setData({ menuRefreshing: false })
+      this.menuRefreshPromise = null
+      wx.stopPullDownRefresh()
+    })
+    return this.menuRefreshPromise
   },
 
   loadMenu() {
@@ -496,6 +506,7 @@ Page({
     })
   },
   saveProfile() {
+    if (this.data.profileSaving) return
     const nickname = (this.data.profileName || '').trim()
     if (!nickname) return wx.showToast({ title: '请填写你的称呼', icon: 'none' })
     this.setData({ profileSaving: true })
@@ -506,10 +517,13 @@ Page({
       return this.data.familyId
         ? Promise.all([this.loadFamily(this.data.familyId), this.loadOrders()])
         : Promise.resolve()
-    }).then(() => { this.setData({ profileEditing: false }); wx.showToast({ title: '称呼已保存', icon: 'success' }) }).catch(err => wx.showToast({ title: err.message, icon: 'none' })).finally(() => this.setData({ profileSaving: false }))
+    }).then(() => { this.setData({ profileEditing: false, profileName: (app.globalData.currentUser && app.globalData.currentUser.nickname) || nickname }); wx.showToast({ title: '称呼已保存', icon: 'success' }) }).catch(err => wx.showToast({ title: err.message, icon: 'none' })).finally(() => this.setData({ profileSaving: false }))
   },
   editProfile() { this.setData({ profileEditing: true }) },
-  cancelProfileEdit() { this.setData({ profileEditing: false, profileName: (app.globalData.currentUser && app.globalData.currentUser.nickname) || '' }) },
+  cancelProfileEdit() {
+    if (this.data.profileSaving) return
+    this.setData({ profileEditing: false, profileName: (app.globalData.currentUser && app.globalData.currentUser.nickname) || '' })
+  },
   onChooseAvatar(e) {
     const tempPath = e.detail && e.detail.avatarUrl
     if (!tempPath) return
