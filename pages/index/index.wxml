@@ -82,7 +82,7 @@ module.exports.initial = function (name) {
 
   <scroll-view class="content family-page {{activeTab === 'family' ? '' : 'tab-hidden'}}" scroll-y>
     <view wx:if="{{!loggedIn}}" class="guest-home">
-      <image class="guest-avatar" src="/assets/default-avatar2.png" mode="aspectFill"></image>
+      <image class="guest-avatar" src="/assets/default-avatar2.jpg" mode="aspectFill"></image>
       <view class="guest-title">未登录</view>
       <view class="guest-subtitle">登录后可以管理家庭组、查看订单和点菜</view>
       <view wx:if="{{loginError}}" class="login-error">{{loginError}}</view>
