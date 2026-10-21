@@ -591,6 +591,7 @@ Page({
 
   switchTab(e) {
     this.closeOrderSwipe()
+    this.categoryScrollTarget = null
     const tab = e.currentTarget.dataset.tab
     this.setData({
       activeTab: tab,
@@ -611,12 +612,23 @@ Page({
     this.setData({ searchKeyword: '' }, () => this.refreshDisplayDishes(true))
   },
   selectCategory(e) {
-    const target = 'dish-section-' + e.currentTarget.dataset.id
-    this.setData({ activeCategory: e.currentTarget.dataset.category, scrollIntoView: '', scrollAnimated: true }, () => {
+    this.scrollToCategory(e.currentTarget.dataset.id, e.currentTarget.dataset.category)
+  },
+  scrollToCategory(id, name) {
+    const target = 'dish-section-' + id
+    // 点击定位期间保留选中项，避免动画中途和底部无法顶齐时被滚动回调覆盖。
+    this.categoryScrollTarget = target
+    this.setData({ activeCategory: name, scrollIntoView: '', scrollAnimated: true }, () => {
+      if (this.categoryScrollTarget !== target) return
       this.setData({ scrollIntoView: target })
     })
   },
+  onDishTouchStart() {
+    this.categoryScrollTarget = null
+    if (this.data.scrollIntoView) this.setData({ scrollIntoView: '', scrollAnimated: false })
+  },
   onDishScroll(e) {
+    if (this.categoryScrollTarget) return
     if (!this.sectionOffsets || !this.sectionOffsets.length) return
     const scrollTop = e.detail.scrollTop + 24
     let active = this.sectionOffsets[0]
@@ -659,9 +671,7 @@ Page({
     this.setData({ displayDishes: list, dishSections: sections, allVisibleSelected: allVisibleSelected }, () => {
       this.measureDishSections()
       if (resetScroll && sections.length) {
-        this.setData({ activeCategory: sections[0].name, scrollIntoView: '' }, () => {
-          this.setData({ scrollIntoView: 'dish-section-' + sections[0].id })
-        })
+        this.scrollToCategory(sections[0].id, sections[0].name)
       }
     })
   },
