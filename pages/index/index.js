@@ -72,6 +72,10 @@ Page({
     orderVisible: false,
     orderRemark: '',
     orders: [],
+    orderSwipeId: null,
+    orderSwipeOffset: 0,
+    orderSwipeDragging: false,
+    deletingOrderId: null,
     familyId: null,
     family: null,
     families: [],
@@ -175,6 +179,7 @@ Page({
   },
 
   clearLogin() {
+    this.closeOrderSwipe()
     app.globalData.sessionToken = null
     app.globalData.currentUser = null
     app.globalData.familyId = null
@@ -358,8 +363,11 @@ Page({
   },
 
   loadOrders() {
+    this.closeOrderSwipe()
     if (!this.isLoggedIn() || !app.globalData.familyId) return Promise.resolve(this.setData({ orders: [] }))
-    return this.authRequest('/api/families/' + app.globalData.familyId + '/orders').then(orders => {
+    const familyId = app.globalData.familyId
+    return this.authRequest('/api/families/' + familyId + '/orders').then(orders => {
+      if (familyId !== app.globalData.familyId) return
       let previousDate = ''
       const list = (orders || []).map(order => {
         const displayTime = formatTime(order.createdAt)
@@ -370,6 +378,87 @@ Page({
       })
       this.setData({ orders: list })
     }).catch(err => this.setData({ error: err.message }))
+  },
+
+  closeOrderSwipe() {
+    this.orderSwipeGesture = null
+    if (this.data.orderSwipeId !== null || this.data.orderSwipeDragging) {
+      this.setData({ orderSwipeId: null, orderSwipeOffset: 0, orderSwipeDragging: false })
+    }
+  },
+  onOrderTouchStart(e) {
+    if (this.data.deletingOrderId !== null || e.touches.length !== 1) return this.closeOrderSwipe()
+    const id = Number(e.currentTarget.dataset.id)
+    if (this.data.orderSwipeId !== id) this.closeOrderSwipe()
+    const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
+    this.orderSwipeGesture = {
+      id: id,
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      offset: this.data.orderSwipeOffset,
+      scale: 750 / info.windowWidth,
+      horizontal: false
+    }
+  },
+  onOrderTouchMove(e) {
+    const gesture = this.orderSwipeGesture
+    if (!gesture) return
+    if (e.touches.length !== 1) return this.closeOrderSwipe()
+    const dx = e.touches[0].clientX - gesture.x
+    const dy = e.touches[0].clientY - gesture.y
+    if (!gesture.horizontal) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 8) return
+      if (Math.abs(dy) >= Math.abs(dx)) return this.closeOrderSwipe()
+      gesture.horizontal = true
+    }
+    const offset = Math.max(-144, Math.min(0, gesture.offset + dx * gesture.scale))
+    this.setData({ orderSwipeId: gesture.id, orderSwipeOffset: offset, orderSwipeDragging: true })
+  },
+  onOrderTouchEnd() {
+    const gesture = this.orderSwipeGesture
+    this.orderSwipeGesture = null
+    if (!gesture) return
+    if (gesture.horizontal && this.data.orderSwipeOffset <= -48) {
+      this.setData({ orderSwipeId: gesture.id, orderSwipeOffset: -144, orderSwipeDragging: false })
+    } else {
+      this.closeOrderSwipe()
+    }
+  },
+  deleteOrder(e) {
+    if (this.data.deletingOrderId !== null || this.orderDeleteConfirming) return
+    const id = Number(e.currentTarget.dataset.id)
+    const familyId = app.globalData.familyId
+    if (!familyId || !this.data.orders.some(order => Number(order.id) === id)) return
+    this.orderDeleteConfirming = true
+    wx.showModal({
+      title: '删除订单',
+      content: '确定删除这笔订单吗？删除后无法恢复。',
+      confirmText: '删除',
+      confirmColor: '#b25f50',
+      cancelText: '取消',
+      success: res => {
+        if (!res.confirm) return
+        if (familyId !== app.globalData.familyId) return this.closeOrderSwipe()
+        this.closeOrderSwipe()
+        this.setData({ deletingOrderId: id })
+        this.authRequest('/api/families/' + familyId + '/orders/' + id, { method: 'DELETE' })
+          .then(() => {
+            if (familyId !== app.globalData.familyId) return
+            let previousDate = ''
+            const orders = this.data.orders.filter(order => Number(order.id) !== id).map(order => {
+              const item = Object.assign({}, order, { showDate: order.dateLabel !== previousDate })
+              previousDate = order.dateLabel
+              return item
+            })
+            this.setData({ orders: orders })
+            wx.showToast({ title: '订单已删除', icon: 'success' })
+            return this.loadOrders()
+          })
+          .catch(err => wx.showToast({ title: err.message || '删除失败，请重试', icon: 'none' }))
+          .finally(() => this.setData({ deletingOrderId: null }))
+      },
+      complete: () => { this.orderDeleteConfirming = false }
+    })
   },
 
   loadFamily(id) {
@@ -501,6 +590,7 @@ Page({
   },
 
   switchTab(e) {
+    this.closeOrderSwipe()
     const tab = e.currentTarget.dataset.tab
     this.setData({
       activeTab: tab,

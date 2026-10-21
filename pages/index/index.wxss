@@ -549,6 +549,38 @@ page { min-height: 100vh; }
   align-items: center;
   gap: 16rpx;
 }
+.order-swipe {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 20rpx;
+  border-radius: 12rpx;
+  background: #b25f50;
+}
+.order-swipe .order-card {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 0;
+  transition: transform .2s ease;
+}
+.order-swipe .order-card-dragging {
+  transition: none;
+}
+.order-delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 144rpx;
+  color: #fff;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+.order-delete-disabled {
+  opacity: .6;
+}
 .order-avatar {
   flex: none;
   width: 64rpx;

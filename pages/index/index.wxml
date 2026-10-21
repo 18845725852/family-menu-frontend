@@ -60,7 +60,7 @@ module.exports.initial = function (name) {
     </view>
   </view>
 
-  <scroll-view class="content order-content {{activeTab === 'orders' ? '' : 'tab-hidden'}}" scroll-y>
+  <scroll-view class="content order-content {{activeTab === 'orders' ? '' : 'tab-hidden'}}" scroll-y bindscroll="closeOrderSwipe">
     <view class="section-heading"><view><text class="section-title">最近的点菜</text><text class="section-note">共 {{orders.length}} 单</text></view><view class="back-menu" data-tab="menu" bindtap="switchTab"><text class="back-menu-icon">‹</text><text>返回菜谱</text></view></view>
     <view wx:if="{{!loggedIn}}" class="empty-state">
       <text class="empty-icon">◷</text>
@@ -70,16 +70,19 @@ module.exports.initial = function (name) {
     <view wx:elif="{{!orders.length}}" class="empty-state"><text class="empty-icon">◷</text><text>还没有订单，先去选几道菜吧</text></view>
     <block wx:for="{{orders}}" wx:key="id">
       <view wx:if="{{item.showDate}}" class="order-date"><text class="date-clock">◷</text><text>{{item.dateLabel}}</text></view>
-      <view class="order-card"><view class="order-top"><image class="order-avatar" src="{{item.customerAvatarUrl || defaultAvatarUrl}}" mode="aspectFill"></image><view class="order-main"><text class="order-customer">{{item.customerName}}</text><text class="order-time">{{item.displayClock}}</text></view></view>
+      <view class="order-swipe">
+      <view class="order-delete {{deletingOrderId !== null ? 'order-delete-disabled' : ''}}" role="button" aria-label="删除订单" data-id="{{item.id}}" catchtap="deleteOrder">{{deletingOrderId === item.id ? '删除中…' : '删除'}}</view>
+      <view class="order-card {{orderSwipeId === item.id && orderSwipeDragging ? 'order-card-dragging' : ''}}" style="transform:translateX({{orderSwipeId === item.id ? orderSwipeOffset : 0}}rpx)" data-id="{{item.id}}" bindtouchstart="onOrderTouchStart" bindtouchmove="onOrderTouchMove" bindtouchend="onOrderTouchEnd" bindtouchcancel="closeOrderSwipe"><view class="order-top"><image class="order-avatar" src="{{item.customerAvatarUrl || defaultAvatarUrl}}" mode="aspectFill"></image><view class="order-main"><text class="order-customer">{{item.customerName}}</text><text class="order-time">{{item.displayClock}}</text></view></view>
       <view class="order-items"><view wx:for="{{item.items}}" wx:for-item="orderItem" wx:key="dishId" class="order-item-row" style="display:flex;align-items:center;justify-content:space-between;min-height:64rpx;padding:8rpx 0;border-bottom:1rpx solid #f0f2f0"><text class="order-item-name" style="flex:1">{{orderItem.dishName}}</text><text class="order-item-quantity" style="margin-left:16rpx;color:#7f8a82">× {{orderItem.quantity}}</text></view></view>
       <view wx:if="{{item.remark}}" class="order-remark">备注：{{item.remark}}</view>
+      </view>
       </view>
     </block>
   </scroll-view>
 
   <scroll-view class="content family-page {{activeTab === 'family' ? '' : 'tab-hidden'}}" scroll-y>
     <view wx:if="{{!loggedIn}}" class="guest-home">
-      <image class="guest-avatar" src="/assets/default-avatar.jpg" mode="aspectFill"></image>
+      <image class="guest-avatar" src="/assets/default-avatar2.png" mode="aspectFill"></image>
       <view class="guest-title">未登录</view>
       <view class="guest-subtitle">登录后可以管理家庭组、查看订单和点菜</view>
       <view wx:if="{{loginError}}" class="login-error">{{loginError}}</view>
