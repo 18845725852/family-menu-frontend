@@ -54,6 +54,7 @@ function resolveMediaUrl(value) {
 
 Page({
   data: {
+    wheelVisited: false,
     activeTab: 'menu',
     categories: [],
     activeCategory: '',
@@ -79,6 +80,7 @@ Page({
     familyId: null,
     family: null,
     families: [],
+    hasOwnedFamily: false,
     inviteCode: '',
     joinCode: '',
     joinPreview: null,
@@ -86,6 +88,10 @@ Page({
     members: [],
     familyVisible: false,
     familyName: '',
+    familyEditingId: null,
+    familySaving: false,
+    familyDeleting: false,
+    familyOwner: false,
     profileName: '',
     profileEditing: false,
     profileSaving: false,
@@ -106,6 +112,7 @@ Page({
     defaultAvatarUrl: '/assets/default-avatar2.jpg',
     avatarSaving: false,
     customMenu: false,
+    customMenuSaving: false,
     editMode: false,
     selectedIds: [],
     allVisibleSelected: false,
@@ -121,12 +128,15 @@ Page({
     editorSaving: false
   },
 
-  onLoad() {
+  onLoad(options) {
+    const activeTab = options && ['menu', 'wheel', 'orders', 'family'].includes(options.tab) ? options.tab : 'menu'
     const familyId = app.globalData.familyId
     const loggedIn = this.isLoggedIn()
     const navMetrics = app.getNavMetrics ? app.getNavMetrics() : app.globalData.navMetrics
     const headerTop = (navMetrics && navMetrics.headerTop) || this.data.headerTop
     this.setData({
+      activeTab,
+      wheelVisited: activeTab === 'wheel',
       familyId: familyId || null,
       loggedIn: loggedIn,
       headerTop: headerTop,
@@ -141,6 +151,9 @@ Page({
   },
 
   onShareAppMessage() {
+    if (this.data.activeTab === 'wheel') {
+      return { title: '不想做饭？转盘帮你决定吃什么', path: '/pages/index/index?tab=wheel', imageUrl: '/assets/share-cover.jpg' }
+    }
     return {
       title: '今晚吃什么？一起选菜吧',
       path: '/pages/index/index',
@@ -149,6 +162,9 @@ Page({
   },
 
   onShareTimeline() {
+    if (this.data.activeTab === 'wheel') {
+      return { title: '不想做饭？转盘帮你决定吃什么', query: 'tab=wheel', imageUrl: '/assets/share-cover.jpg' }
+    }
     return {
       title: '今晚吃什么？一起选菜吧',
       query: '',
@@ -197,12 +213,15 @@ Page({
       familyId: null,
       family: null,
       families: [],
+      hasOwnedFamily: false,
       members: [],
       orders: [],
       profileName: '',
       profileAvatarUrl: '',
       profileEditing: false,
       familyVisible: false,
+      familyEditingId: null,
+      familyOwner: false,
       basketVisible: false,
       inviteCode: '',
       loggedIn: false,
@@ -473,18 +492,29 @@ Page({
 
   loadFamily(id) {
     return Promise.all([this.authRequest('/api/families/' + id), this.authRequest('/api/families/' + id + '/members')])
-      .then(([family, members]) => this.setData({
-        family: family,
-        members: (members || []).map(member => Object.assign({}, member, {
-          initial: (member.nickname || '?').substring(0, 1),
-          avatarUrl: resolveMediaUrl(member.avatarUrl || '')
-        })),
-        inviteCode: (this.inviteCodes && this.inviteCodes[id]) || ''
-      }))
+      .then(([family, members]) => {
+        if (Number(id) !== Number(this.data.familyId)) return
+        const userId = Number((app.globalData.currentUser || {}).userId)
+        const familyOwner = Number(family.ownerUserId) === userId
+        app.globalData.family = family
+        this.setData({
+          family: family,
+          familyOwner: familyOwner,
+          members: (members || []).map(member => Object.assign({}, member, {
+            initial: (member.nickname || '?').substring(0, 1),
+            avatarUrl: resolveMediaUrl(member.avatarUrl || ''),
+            isSelf: Number(member.userId) === userId,
+            canRemove: member.role !== 'OWNER' && (familyOwner || Number(member.userId) === userId)
+          })),
+          inviteCode: (this.inviteCodes && this.inviteCodes[id]) || ''
+        })
+      })
       .catch(() => {
+        if (Number(id) !== Number(this.data.familyId)) return
         app.globalData.familyId = null
+        app.globalData.family = null
         wx.removeStorageSync('familyId')
-        this.setData({ familyId: null, family: null, members: [], inviteCode: '' })
+        this.setData({ familyId: null, family: null, familyOwner: false, members: [], inviteCode: '' })
       })
   },
   loadFamilies() {
@@ -493,6 +523,7 @@ Page({
       const storedId = Number(app.globalData.familyId)
       const storedFamily = list.find(item => Number(item.id) === storedId)
       const currentId = storedFamily ? storedFamily.id : (list[0] && list[0].id)
+      const familyChanged = Number(this.data.familyId) !== Number(currentId || null)
       if (currentId) {
         app.globalData.familyId = currentId
         wx.setStorageSync('familyId', currentId)
@@ -500,8 +531,37 @@ Page({
         app.globalData.familyId = null
         wx.removeStorageSync('familyId')
       }
-      this.setData({ families: list, familyId: currentId || null })
-      const follow = currentId ? this.loadFamily(currentId) : Promise.resolve(this.setData({ family: null, members: [], orders: [], inviteCode: '' }))
+      const userId = Number((app.globalData.currentUser || {}).userId)
+      const hasOwnedFamily = list.some(item => Number(item.ownerUserId) === userId)
+      const data = { families: list, familyId: currentId || null, hasOwnedFamily: hasOwnedFamily }
+      if (familyChanged) {
+        app.globalData.family = null
+        app.globalData.pendingBasket = []
+        app.globalData.orderEditing = false
+        app.globalData.orderSubmitted = false
+        this.closeOrderSwipe()
+        Object.assign(data, {
+          family: null,
+          familyOwner: false,
+          familyVisible: false,
+          familyEditingId: null,
+          members: [],
+          orders: [],
+          inviteCode: '',
+          editMode: false,
+          selectedIds: [],
+          allVisibleSelected: false,
+          basket: [],
+          basketCount: 0,
+          basketTotal: 0,
+          basketVisible: false,
+          orderVisible: false,
+          dishEditorVisible: false,
+          dishDetailVisible: false
+        })
+      }
+      this.setData(data)
+      const follow = currentId ? this.loadFamily(currentId) : Promise.resolve(this.setData({ family: null, familyOwner: false, members: [], orders: [], inviteCode: '' }))
       return follow.then(() => this.loadMenu())
     })
   },
@@ -594,6 +654,11 @@ Page({
     wx.setStorageSync('familyId', id)
     this.setData({
       familyId: id,
+      family: null,
+      familyOwner: false,
+      members: [],
+      familyVisible: false,
+      familyEditingId: null,
       editMode: false,
       inviteCode: (this.inviteCodes && this.inviteCodes[id]) || ''
     })
@@ -604,17 +669,27 @@ Page({
   },
 
   switchTab(e) {
+    const tab = e.currentTarget.dataset.tab
+    if (!['menu', 'wheel', 'orders', 'family'].includes(tab)) return
     this.closeOrderSwipe()
     this.categoryScrollTarget = null
-    const tab = e.currentTarget.dataset.tab
     this.setData({
       activeTab: tab,
+      wheelVisited: this.data.wheelVisited || tab === 'wheel',
       basketVisible: false,
       scrollIntoView: '',
       scrollAnimated: false
     })
   },
-  goWheel() { wx.navigateTo({ url: '/pages/wheel/wheel' }) },
+  goWheel() {
+    this.switchTab({ currentTarget: { dataset: { tab: 'wheel' } } })
+  },
+  onWheelNavigate(e) {
+    this.switchTab({ currentTarget: { dataset: { tab: e.detail.tab } } })
+    if (e.detail.login && !this.isLoggedIn()) {
+      this.showLogin('', '登录后可以自定义自己的转盘', 'family')
+    }
+  },
   toggleSearch() {
     const visible = !this.data.searchVisible
     this.setData({ searchVisible: visible, searchKeyword: visible ? this.data.searchKeyword : '' }, this.refreshDisplayDishes)
@@ -768,10 +843,21 @@ Page({
   },
   closeOrder() { this.setData({ orderVisible: false }) },
 
-  toggleEditMode(e) {
-    const editMode = !!(e.detail && e.detail.value)
+  startDishManagement() {
+    if (!this.data.loggedIn || !this.data.familyId || !this.data.customMenu) return
+    this.closeOrderSwipe()
+    this.categoryScrollTarget = null
+    this.setEditMode(true)
+  },
+  finishDishManagement() {
+    this.setEditMode(false)
+  },
+  setEditMode(editMode) {
     const data = { editMode: editMode, basketVisible: false, orderVisible: false }
     if (editMode) {
+      data.activeTab = 'menu'
+      data.scrollIntoView = ''
+      data.scrollAnimated = false
       data.basket = []
       data.basketCount = 0
       data.basketTotal = 0
@@ -782,26 +868,34 @@ Page({
     this.setData(data, this.refreshDisplayDishes)
   },
   toggleCustomMenu(e) {
+    if (this.data.customMenuSaving) return
     const enabled = !!(e.detail && e.detail.value)
     if (!this.isLoggedIn() || !app.globalData.familyId) {
       this.setData({ customMenu: false })
       return this.showLogin('', '登录后才能自定义菜谱', 'menu')
     }
+    const familyId = app.globalData.familyId
+    const previous = this.data.customMenu
+    this.setData({ customMenuSaving: true })
     wx.showLoading({ title: enabled ? '正在准备家庭菜谱' : '正在切回默认菜谱', mask: true })
-    this.authRequest('/api/families/' + app.globalData.familyId + '/menu', { method: 'PUT', data: { customMenu: enabled } })
+    return this.authRequest('/api/families/' + familyId + '/menu', { method: 'PUT', data: { customMenu: enabled } })
       .then(menu => {
+        if (Number(familyId) !== Number(app.globalData.familyId) || !this.isLoggedIn()) return
         const normalizedDishes = ((menu && menu.dishes) || []).map(dish => Object.assign({}, dish, {
           imageUrl: resolveMediaUrl(dish.imageUrl),
           recipeSteps: parseRecipe(dish.recipe)
         }))
         const enabled = !!menu.customMenu
-        this.setData({ customMenu: enabled, editMode: enabled ? this.data.editMode : false, dishes: normalizedDishes, basket: [], basketCount: 0, basketTotal: 0 }, this.refreshDisplayDishes)
+        app.globalData.pendingBasket = []
+        app.globalData.orderEditing = false
+        this.setData({ customMenu: enabled, editMode: enabled ? this.data.editMode : false, dishes: normalizedDishes, selectedIds: [], allVisibleSelected: false, basket: [], basketCount: 0, basketTotal: 0 }, this.refreshDisplayDishes)
       })
       .catch(err => {
-        this.setData({ customMenu: !enabled })
+        if (Number(familyId) !== Number(app.globalData.familyId) || !this.isLoggedIn()) return
+        this.setData({ customMenu: previous })
         wx.showToast({ title: err.message, icon: 'none' })
       })
-      .finally(() => wx.hideLoading())
+      .finally(() => { this.setData({ customMenuSaving: false }); wx.hideLoading() })
   },
   openDishEditor(e) {
     if (!this.data.customMenu || !this.data.editMode) return
@@ -988,17 +1082,94 @@ Page({
       .finally(() => this.setData({ submitting: false }))
   },
 
-  openFamily() { this.setData({ familyVisible: true }) },
-  closeFamily() { this.setData({ familyVisible: false }) },
-  createFamily() {
+  isFamilyOwner() {
+    const family = this.data.family
+    const user = app.globalData.currentUser
+    return !!(family && user && Number(family.id) === Number(this.data.familyId) && Number(family.ownerUserId) === Number(user.userId))
+  },
+  manageFamily() {
+    if (!this.isFamilyOwner() || this.data.familySaving || this.data.familyDeleting) return
+    const familyId = this.data.familyId
+    wx.showActionSheet({
+      itemList: ['编辑家庭组名称', '删除家庭组'],
+      success: res => {
+        if (Number(familyId) !== Number(this.data.familyId) || !this.isFamilyOwner()) return
+        if (res.tapIndex === 0) this.editFamily()
+        if (res.tapIndex === 1) this.deleteFamily()
+      }
+    })
+  },
+  openFamily() {
+    if (this.data.hasOwnedFamily || this.data.familySaving || this.data.familyDeleting) return
+    this.setData({ familyVisible: true, familyEditingId: null, familyName: '' })
+  },
+  editFamily() {
+    if (!this.isFamilyOwner() || this.data.familySaving || this.data.familyDeleting) return
+    this.setData({ familyVisible: true, familyEditingId: this.data.familyId, familyName: this.data.family.name })
+  },
+  closeFamily() {
+    if (this.data.familySaving) return
+    this.setData({ familyVisible: false, familyEditingId: null, familyName: '' })
+  },
+  saveFamily() {
+    return this.data.familyEditingId ? this.renameFamily() : this.createFamily()
+  },
+  renameFamily() {
+    if (this.data.familySaving || !this.isFamilyOwner()) return
+    const id = this.data.familyEditingId
+    if (Number(id) !== Number(this.data.familyId)) return
     const name = (this.data.familyName || '').trim()
     if (!name) return wx.showToast({ title: '请填写家庭组名称', icon: 'none' })
-    this.authRequest('/api/families', { method: 'POST', data: { name: name } }).then(family => {
+    if (name.length > 30) return wx.showToast({ title: '名称不能超过30个字', icon: 'none' })
+    this.setData({ familySaving: true })
+    return this.authRequest('/api/families/' + id, { method: 'PUT', data: { name: name } }).then(family => {
+      const data = { families: this.data.families.map(item => Number(item.id) === Number(id) ? family : item) }
+      if (Number(this.data.familyId) === Number(id)) {
+        app.globalData.family = family
+        Object.assign(data, { family: family, familyVisible: false, familyEditingId: null, familyName: '' })
+      }
+      this.setData(data)
+      wx.showToast({ title: '名称已更新', icon: 'success' })
+    }).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
+      .finally(() => this.setData({ familySaving: false }))
+  },
+  deleteFamily() {
+    if (!this.isFamilyOwner() || this.data.familyDeleting || this.data.familySaving) return
+    const id = this.data.familyId
+    const name = this.data.family.name
+    wx.showModal({
+      title: '删除家庭组',
+      content: '确认删除“' + name + '”吗？所有成员将退出，该组的家庭菜谱、订单和转盘数据将一并删除，且无法恢复。',
+      confirmText: '确认删除',
+      confirmColor: '#b25f50',
+      success: res => {
+        if (!res.confirm || this.data.familyDeleting || Number(id) !== Number(this.data.familyId) || !this.isFamilyOwner()) return
+        this.setData({ familyDeleting: true })
+        return this.authRequest('/api/families/' + id, { method: 'DELETE' })
+          .then(() => {
+            if (this.inviteCodes) delete this.inviteCodes[id]
+            return this.loadFamilies()
+          })
+          .then(() => this.loadOrders())
+          .then(() => wx.showToast({ title: '家庭组已删除', icon: 'success' }))
+          .catch(err => wx.showToast({ title: err.message, icon: 'none' }))
+          .finally(() => this.setData({ familyDeleting: false }))
+      }
+    })
+  },
+  createFamily() {
+    if (this.data.hasOwnedFamily || this.data.familySaving) return
+    const name = (this.data.familyName || '').trim()
+    if (!name) return wx.showToast({ title: '请填写家庭组名称', icon: 'none' })
+    this.setData({ familySaving: true })
+    return this.authRequest('/api/families', { method: 'POST', data: { name: name } }).then(family => {
       app.globalData.familyId = family.id
       wx.setStorageSync('familyId', family.id)
-      this.setData({ familyId: family.id, familyName: '', familyVisible: false })
+      this.setData({ familyName: '', familyVisible: false, hasOwnedFamily: true })
       return this.loadFamilies()
-    }).then(() => wx.showToast({ title: '家庭组已创建', icon: 'success' })).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
+    }).then(() => this.loadOrders())
+      .then(() => wx.showToast({ title: '家庭组已创建', icon: 'success' })).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
+      .finally(() => this.setData({ familySaving: false }))
   },
   createInviteCode() {
     if (!this.data.familyId) return wx.showToast({ title: '请先创建家庭组', icon: 'none' })
@@ -1038,9 +1209,16 @@ Page({
   },
   removeMember(e) {
     const memberId = e.currentTarget.dataset.id
-    wx.showModal({ title: '移除成员', content: '确认移除这个家庭成员吗？', success: res => {
-      if (!res.confirm) return
-      this.authRequest('/api/families/' + this.data.familyId + '/members/' + memberId, { method: 'DELETE' }).then(() => this.loadFamily(this.data.familyId)).catch(err => wx.showToast({ title: err.message, icon: 'none' }))
+    const familyId = this.data.familyId
+    const member = this.data.members.find(item => Number(item.id) === Number(memberId))
+    const isSelf = member && Number(member.userId) === Number((app.globalData.currentUser || {}).userId)
+    if (!member || member.role === 'OWNER' || (!this.isFamilyOwner() && !isSelf)) return
+    wx.showModal({ title: isSelf ? '退出家庭组' : '移除成员', content: isSelf ? '确认退出当前家庭组吗？' : '确认移除这个家庭成员吗？', success: res => {
+      if (!res.confirm || Number(familyId) !== Number(this.data.familyId)) return
+      return this.authRequest('/api/families/' + familyId + '/members/' + memberId, { method: 'DELETE' })
+        .then(() => this.loadFamilies())
+        .then(() => this.loadOrders())
+        .catch(err => wx.showToast({ title: err.message, icon: 'none' }))
     } })
   },
   dishImage(e) { e.detail && e.detail.errMsg && this.setData({}) }

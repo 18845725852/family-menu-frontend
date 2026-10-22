@@ -1,6 +1,7 @@
 {
   "usingComponents": {
-    "navigation-bar": "/components/navigation-bar/navigation-bar"
+    "navigation-bar": "/components/navigation-bar/navigation-bar",
+    "wheel-panel": "/components/wheel-panel/wheel-panel"
   },
   "enablePullDownRefresh": true
 }

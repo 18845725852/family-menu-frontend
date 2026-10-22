@@ -16,21 +16,18 @@ module.exports.initial = function (name) {
   </view>
 
   <view class="content menu-content {{activeTab === 'menu' ? '' : 'tab-hidden'}}">
-    <view class="wheel-banner" bindtap="goWheel"><view><text class="wheel-banner-title">今晚吃什么</text><text class="wheel-banner-subtitle">把转盘交给概率，省掉来回纠结</text></view><view class="wheel-banner-action">去转盘</view></view>
     <view class="menu-search-row"><view class="menu-search-field"><image class="menu-search-icon" src="/assets/search.svg" mode="aspectFit"/><input class="menu-search-input" placeholder="" value="{{searchKeyword}}" bindinput="inputSearch" confirm-type="search"/><text class="search-clear" style="margin-right:22rpx" wx:if="{{searchKeyword}}" bindtap="clearSearch">清空</text></view></view>
-    <view wx:if="{{loggedIn && familyId && customMenu}}" class="menu-custom-bar">
+    <view wx:if="{{loggedIn && familyId && customMenu && editMode}}" class="menu-custom-bar">
       <view class="menu-custom-copy">
-        <text class="menu-custom-title">编辑模式</text>
-        <text class="menu-custom-note">{{editMode ? '可以添加、修改和删除菜品' : '关闭后按正常点菜使用'}}</text>
+        <text class="menu-custom-title">正在管理家庭菜谱</text>
+        <text class="menu-custom-note">勾选菜品可批量删除</text>
       </view>
-      <switch checked="{{editMode}}" color="#20302a" bindchange="toggleEditMode"/>
+      <button class="menu-edit-done" bindtap="finishDishManagement">完成</button>
     </view>
     <view wx:if="{{customMenu && editMode}}" class="add-dish-btn" bindtap="openDishEditor">
       <text class="add-dish-plus">＋</text>
-      <view class="add-dish-copy">
-        <text class="add-dish-title">添加菜品</text>
-        <text class="add-dish-note">填写名称、分类、做法，并可上传图片</text>
-      </view>
+      <text class="add-dish-title">添加菜品</text>
+      <text class="add-dish-arrow">›</text>
     </view>
     <view class="menu-layout">
       <view class="category-list">
@@ -45,19 +42,33 @@ module.exports.initial = function (name) {
           <view wx:for="{{dishSections}}" wx:for-item="section" wx:key="id" id="dish-section-{{section.id}}" class="dish-section">
           <view class="dish-heading"><text>{{section.name}}</text><text class="dish-count">{{section.dishes.length}} 道</text></view>
           <block wx:for="{{section.dishes}}" wx:for-item="item" wx:key="id">
-          <view class="dish-card" style="display:flex;align-items:center;min-height:150rpx;margin:0;padding:14rpx 0;border:0;border-bottom:1rpx solid #f0f2f0;box-shadow:none">
+          <view class="dish-card {{editMode ? 'dish-card-editing' : ''}} {{item.selected ? 'dish-card-selected' : ''}}">
             <view wx:if="{{editMode}}" class="dish-check {{item.selected ? 'dish-check-on' : ''}}" data-id="{{item.id}}" catchtap="toggleDishSelect">{{item.selected ? '✓' : ''}}</view>
-            <image class="dish-image" style="flex:none;width:142rpx;height:142rpx;border-radius:20rpx" src="{{item.imageUrl || defaultDishUrl}}" mode="aspectFill" lazy-load="true" fade-show="true" data-image="{{item.imageUrl || defaultDishUrl}}" catchtap="previewDishImage"></image>
-            <view class="dish-info" style="flex:1;min-width:0;padding:0 14rpx" data-id="{{item.id}}" catchtap="openDishDetail"><view class="dish-name-row"><text class="dish-name">{{item.name}}</text><view wx:if="{{customMenu && editMode}}" class="dish-ops"><text class="dish-edit" data-id="{{item.id}}" catchtap="openDishEditor">编辑</text><text class="dish-delete" data-id="{{item.id}}" data-name="{{item.name}}" catchtap="deleteDishFromList">删除</text></view></view><view class="dish-category dish-description">{{item.description}}</view><view class="dish-recipe-link">{{item.recipeSteps.length ? '查看做法 >>' : '查看介绍 >>'}}</view></view>
+            <image class="dish-image" src="{{item.imageUrl || defaultDishUrl}}" mode="aspectFill" lazy-load="true" fade-show="true" data-image="{{item.imageUrl || defaultDishUrl}}" catchtap="previewDishImage"></image>
+            <view class="dish-info" data-id="{{item.id}}" catchtap="openDishDetail">
+              <view class="dish-name-row">
+                <text class="dish-name">{{item.name}}</text>
+                <view wx:if="{{customMenu && editMode}}" class="dish-ops">
+                  <text class="dish-edit" data-id="{{item.id}}" catchtap="openDishEditor">编辑</text>
+                  <text class="dish-delete" data-id="{{item.id}}" data-name="{{item.name}}" catchtap="deleteDishFromList">删除</text>
+                </view>
+              </view>
+              <view class="dish-category dish-description">{{item.description}}</view>
+              <view class="dish-recipe-link">{{item.recipeSteps.length ? '查看做法 >>' : '查看介绍 >>'}}</view>
+            </view>
             <view wx:if="{{!editMode}}" class="dish-action" style="flex:none;margin:0;min-height:0"><view wx:if="{{item.quantity}}" class="stepper"><text class="step" data-id="{{item.id}}" catchtap="decreaseDish">−</text><text class="quantity">{{item.quantity}}</text><text class="step" data-id="{{item.id}}" catchtap="increaseDish">＋</text></view><view wx:else class="add-circle" data-id="{{item.id}}" catchtap="addDish">＋</view></view>
           </view>
           </block>
           </view>
         </block>
-        <view wx:if="{{basketCount || editMode}}" class="basket-safe-space"></view>
+        <view wx:if="{{basketCount || editMode}}" class="basket-safe-space {{editMode ? 'edit-safe-space' : ''}}"></view>
         </view>
       </scroll-view>
     </view>
+  </view>
+
+  <view class="content wheel-content {{activeTab === 'wheel' ? '' : 'tab-hidden'}}">
+    <wheel-panel wx:if="{{wheelVisited}}" class="wheel-panel" active="{{activeTab === 'wheel'}}" family-id="{{familyId}}" authenticated="{{loggedIn}}" bind:navigate="onWheelNavigate"/>
   </view>
 
   <scroll-view class="content order-content {{activeTab === 'orders' ? '' : 'tab-hidden'}}" scroll-y bindscroll="closeOrderSwipe">
@@ -116,12 +127,16 @@ module.exports.initial = function (name) {
       <view wx:if="{{!family}}" class="me-card me-empty">
         <view class="me-empty-title">还没有家庭组</view>
         <view class="me-empty-note">创建后，家人称呼会自动出现在点菜记录里</view>
-        <view class="me-primary" bindtap="openFamily">创建家庭组</view>
+        <view wx:if="{{!hasOwnedFamily}}" class="me-primary" bindtap="openFamily">创建家庭组</view>
       </view>
       <view wx:else class="me-card">
         <view class="me-card-head">
           <text class="me-card-title">我的家庭组</text>
-          <text class="me-card-note">{{members.length}} 位成员</text>
+          <view class="family-head-actions">
+            <text class="me-card-note">{{members.length}} 位成员</text>
+            <text wx:if="{{!hasOwnedFamily}}" class="family-manage" role="button" bindtap="openFamily">创建家庭组</text>
+            <text wx:if="{{familyOwner}}" class="family-manage" bindtap="manageFamily">{{familyDeleting ? '删除中' : '管理'}}</text>
+          </view>
         </view>
         <view class="family-switcher">
           <view wx:for="{{families}}" wx:key="id" class="family-chip {{familyId === item.id ? 'family-chip-active' : ''}}" data-id="{{item.id}}" bindtap="switchFamily">{{item.name}}</view>
@@ -131,7 +146,14 @@ module.exports.initial = function (name) {
             <text class="me-menu-title">使用家庭组菜谱</text>
             <text class="me-menu-note">{{customMenu ? '当前家庭组使用自己的菜谱' : '关闭时看到的为默认菜谱'}}</text>
           </view>
-          <switch checked="{{customMenu}}" color="#20302a" bindchange="toggleCustomMenu"/>
+          <switch checked="{{customMenu}}" disabled="{{customMenuSaving}}" color="#20302a" bindchange="toggleCustomMenu"/>
+        </view>
+        <view wx:if="{{customMenu}}" class="me-menu-row" role="button" aria-label="管理家庭菜谱" bindtap="startDishManagement">
+          <view class="me-menu-copy">
+            <text class="me-menu-title">管理家庭菜谱</text>
+            <text class="me-menu-note">添加、编辑和删除当前家庭组的菜品</text>
+          </view>
+          <text class="menu-manage-arrow">›</text>
         </view>
         <view class="member-list">
           <view wx:for="{{members}}" wx:key="id" class="member-row">
@@ -140,7 +162,7 @@ module.exports.initial = function (name) {
               <text class="member-name">{{item.nickname}}</text>
               <text class="member-role">{{item.role === 'OWNER' ? '家庭组创建者' : '家庭成员'}}</text>
             </view>
-            <text wx:if="{{item.role !== 'OWNER'}}" class="member-remove" data-id="{{item.id}}" bindtap="removeMember">移除</text>
+            <text wx:if="{{item.canRemove}}" class="member-remove" data-id="{{item.id}}" bindtap="removeMember">{{item.isSelf ? '退出' : '移除'}}</text>
           </view>
         </view>
         <view class="invite-block">
@@ -171,11 +193,16 @@ module.exports.initial = function (name) {
 </view>
 
 <view wx:if="{{activeTab === 'menu' && editMode}}" class="batch-bar">
-  <text class="batch-all" bindtap="toggleSelectAll">{{allVisibleSelected ? '取消全选' : '全选'}}</text>
-  <text class="batch-count">已选 {{selectedIds.length}} 道</text>
+  <view class="batch-all" bindtap="toggleSelectAll">{{allVisibleSelected ? '取消全选' : '全选当前'}}</view>
+  <view class="batch-count"><text class="batch-count-number">{{selectedIds.length}}</text><text>道已选</text></view>
   <view class="batch-delete {{selectedIds.length ? '' : 'batch-delete-disabled'}}" bindtap="batchDeleteDishes">删除所选</view>
 </view>
-<view class="bottom-nav"><view class="nav-item {{activeTab === 'menu' ? 'nav-active' : ''}}" data-tab="menu" catchtap="switchTab"><text>▦</text><label>菜谱</label></view><view class="nav-item {{activeTab === 'orders' ? 'nav-active' : ''}}" data-tab="orders" catchtap="switchTab"><text>▤</text><label>订单</label></view><view class="nav-item {{activeTab === 'family' ? 'nav-active' : ''}}" data-tab="family" catchtap="switchTab"><text>♧</text><label>我的</label></view></view>
+<view class="bottom-nav">
+  <view class="nav-item {{activeTab === 'menu' ? 'nav-active' : ''}}" data-tab="menu" catchtap="switchTab"><text>▦</text><label>菜谱</label></view>
+  <view class="nav-item {{activeTab === 'wheel' ? 'nav-active' : ''}}" data-tab="wheel" catchtap="switchTab"><image class="nav-wheel-icon" src="{{activeTab === 'wheel' ? '/assets/wheel-active.svg' : '/assets/wheel.svg'}}" mode="aspectFit"></image><label>转盘</label></view>
+  <view class="nav-item {{activeTab === 'orders' ? 'nav-active' : ''}}" data-tab="orders" catchtap="switchTab"><text>▤</text><label>订单</label></view>
+  <view class="nav-item {{activeTab === 'family' ? 'nav-active' : ''}}" data-tab="family" catchtap="switchTab"><text>♧</text><label>我的</label></view>
+</view>
 
 <view wx:if="{{activeTab === 'menu' && basketCount && !editMode}}" class="basket-bar"><view class="basket-summary" bindtap="openBasket"><text class="basket-label">已选菜品</text><text class="basket-total">{{basketTotal}} 份</text></view><view class="basket-button" bindtap="openOrder">去下单</view></view>
 
@@ -183,7 +210,7 @@ module.exports.initial = function (name) {
 
 <view wx:if="{{orderVisible}}" class="overlay"><view class="sheet order-sheet"><view class="sheet-head"><text class="sheet-title">提交这桌菜</text><text class="sheet-close" bindtap="closeOrder">×</text></view><view class="form-label">开饭备注 <text class="optional">选填</text></view><textarea class="form-textarea" placeholder="例如：六点开饭、少油少盐" value="{{orderRemark}}" data-field="orderRemark" bindinput="input" maxlength="200"></textarea><view class="confirm-total">共 {{basketCount}} 种菜</view><button class="primary-button sheet-button" loading="{{submitting}}" bindtap="submitOrder">提交订单</button></view></view>
 
-<view wx:if="{{familyVisible}}" class="overlay"><view class="sheet"><view class="sheet-head"><text class="sheet-title">创建家庭组</text><text class="sheet-close" bindtap="closeFamily">×</text></view><view class="form-label">家庭组名称</view><input class="form-input" placeholder="例如：我们家" value="{{familyName}}" data-field="familyName" bindinput="input" maxlength="30"/><view class="family-owner-tip">创建者将使用当前称呼：{{profileName}}</view><button class="primary-button sheet-button" bindtap="createFamily">创建并进入</button></view></view>
+<view wx:if="{{familyVisible}}" class="overlay"><view class="sheet"><view class="sheet-head"><text class="sheet-title">{{familyEditingId ? '编辑家庭组名称' : '创建家庭组'}}</text><text class="sheet-close" bindtap="closeFamily">×</text></view><view class="form-label">家庭组名称</view><input class="form-input" placeholder="例如：我们家" value="{{familyName}}" data-field="familyName" bindinput="input" maxlength="30" disabled="{{familySaving}}"/><view wx:if="{{!familyEditingId}}" class="family-owner-tip">创建者将使用当前称呼：{{profileName}}</view><button class="primary-button sheet-button" loading="{{familySaving}}" disabled="{{familySaving}}" bindtap="saveFamily">{{familyEditingId ? '保存名称' : '创建并进入'}}</button></view></view>
 
 <view wx:if="{{previewImageVisible}}" class="image-preview-mask" bindtap="closePreviewImage"><view class="image-preview-card" catchtap="noop"><text class="image-preview-close" bindtap="closePreviewImage">×</text><image class="image-preview" src="{{previewImageUrl}}" mode="widthFix"></image></view></view>
 
