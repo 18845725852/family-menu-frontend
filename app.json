@@ -5,11 +5,12 @@
     "pages/order/order"
   ],
   "window": {
-    "navigationBarTextStyle": "white",
+    "navigationBarTextStyle": "black",
     "navigationStyle": "custom",
-    "backgroundColor": "#1b2230",
-    "backgroundColorTop": "#1b2230",
-    "backgroundColorBottom": "#1b2230"
+    "glassEaselWebview": true,
+    "backgroundColor": "#fafaf7",
+    "backgroundColorTop": "#fafaf7",
+    "backgroundColorBottom": "#fafaf7"
   },
   "style": "v2",
   "renderer": "skyline",
@@ -17,7 +18,6 @@
     "skyline": {
       "defaultDisplayBlock": true,
       "defaultContentBox": true,
-      "tagNameStyleIsolation": "legacy",
       "disableABTest": true,
       "sdkVersionBegin": "3.0.0",
       "sdkVersionEnd": "15.255.255"

@@ -79,6 +79,8 @@ Page({
     deletingOrderId: null,
     familyId: null,
     family: null,
+    familyLoading: false,
+    familyLoadError: '',
     families: [],
     hasOwnedFamily: false,
     inviteCode: '',
@@ -152,7 +154,7 @@ Page({
 
   onShareAppMessage() {
     if (this.data.activeTab === 'wheel') {
-      return { title: '不想做饭？转盘帮你决定吃什么', path: '/pages/index/index?tab=wheel', imageUrl: '/assets/share-cover.jpg' }
+      return { title: '不想做饭？抽张卡决定吃什么', path: '/pages/index/index?tab=wheel', imageUrl: '/assets/share-cover.jpg' }
     }
     return {
       title: '今晚吃什么？一起选菜吧',
@@ -163,7 +165,7 @@ Page({
 
   onShareTimeline() {
     if (this.data.activeTab === 'wheel') {
-      return { title: '不想做饭？转盘帮你决定吃什么', query: 'tab=wheel', imageUrl: '/assets/share-cover.jpg' }
+      return { title: '不想做饭？抽张卡决定吃什么', query: 'tab=wheel', imageUrl: '/assets/share-cover.jpg' }
     }
     return {
       title: '今晚吃什么？一起选菜吧',
@@ -178,7 +180,7 @@ Page({
       this.setData({ activeTab: 'family', basketVisible: false })
       if (app.globalData.openLogin && !this.isLoggedIn()) {
         app.globalData.openLogin = false
-        this.showLogin('', '登录后可以自定义自己的转盘', 'family')
+        this.showLogin('', '登录后可以自定义自己的餐厅卡牌', 'family')
       } else {
         app.globalData.openLogin = false
       }
@@ -212,6 +214,8 @@ Page({
       activeTab: 'menu',
       familyId: null,
       family: null,
+      familyLoading: false,
+      familyLoadError: '',
       families: [],
       hasOwnedFamily: false,
       members: [],
@@ -353,13 +357,17 @@ Page({
   },
 
   loadMenu() {
+    const ticket = (this.menuLoadTicket || 0) + 1
+    this.menuLoadTicket = ticket
     this.setData({ loading: true, error: '' })
     const familyId = this.isLoggedIn() ? app.globalData.familyId : null
+    const isCurrent = () => ticket === this.menuLoadTicket && familyId === (this.isLoggedIn() ? app.globalData.familyId : null)
     const menuRequest = familyId
       ? this.authRequest('/api/families/' + familyId + '/menu')
       : request('/api/dishes').then(dishes => ({ customMenu: false, dishes: dishes || [] }))
     return Promise.all([request('/api/dish-categories'), menuRequest])
       .then(([categories, menu]) => {
+        if (!isCurrent()) return
         const list = (categories || []).map(category => {
           const name = category.name || ''
           return Object.assign({}, category, { line1: name.substring(0, 2), line2: name.substring(2) })
@@ -384,11 +392,11 @@ Page({
           selectedIds: customMenu ? selectedIds : [],
           basket: basket,
           basketCount: basket.length,
-          basketTotal: basket.length
+          basketTotal: basket.reduce((total, item) => total + Number(item.quantity || 0), 0)
         }, this.refreshDisplayDishes)
       })
-      .catch(err => this.setData({ error: err.message }))
-      .finally(() => this.setData({ loading: false }))
+      .catch(err => { if (isCurrent()) this.setData({ error: err.message }) })
+      .finally(() => { if (isCurrent()) this.setData({ loading: false }) })
   },
 
   loadOrders() {
@@ -491,14 +499,19 @@ Page({
   },
 
   loadFamily(id) {
+    const ticket = (this.familyLoadTicket || 0) + 1
+    this.familyLoadTicket = ticket
+    this.setData({ familyLoading: true, familyLoadError: '' })
     return Promise.all([this.authRequest('/api/families/' + id), this.authRequest('/api/families/' + id + '/members')])
       .then(([family, members]) => {
-        if (Number(id) !== Number(this.data.familyId)) return
+        if (ticket !== this.familyLoadTicket || Number(id) !== Number(this.data.familyId)) return
         const userId = Number((app.globalData.currentUser || {}).userId)
         const familyOwner = Number(family.ownerUserId) === userId
         app.globalData.family = family
         this.setData({
           family: family,
+          familyLoading: false,
+          familyLoadError: '',
           familyOwner: familyOwner,
           members: (members || []).map(member => Object.assign({}, member, {
             initial: (member.nickname || '?').substring(0, 1),
@@ -509,12 +522,9 @@ Page({
           inviteCode: (this.inviteCodes && this.inviteCodes[id]) || ''
         })
       })
-      .catch(() => {
-        if (Number(id) !== Number(this.data.familyId)) return
-        app.globalData.familyId = null
-        app.globalData.family = null
-        wx.removeStorageSync('familyId')
-        this.setData({ familyId: null, family: null, familyOwner: false, members: [], inviteCode: '' })
+      .catch(err => {
+        if (ticket !== this.familyLoadTicket || Number(id) !== Number(this.data.familyId)) return
+        this.setData({ familyLoading: false, familyLoadError: err.message || '家庭组加载失败，请重试', familyOwner: false })
       })
   },
   loadFamilies() {
@@ -533,7 +543,7 @@ Page({
       }
       const userId = Number((app.globalData.currentUser || {}).userId)
       const hasOwnedFamily = list.some(item => Number(item.ownerUserId) === userId)
-      const data = { families: list, familyId: currentId || null, hasOwnedFamily: hasOwnedFamily }
+      const data = { families: list, familyId: currentId || null, hasOwnedFamily: hasOwnedFamily, familyLoading: !!currentId, familyLoadError: '' }
       if (familyChanged) {
         app.globalData.family = null
         app.globalData.pendingBasket = []
@@ -650,11 +660,17 @@ Page({
   switchFamily(e) {
     const id = Number(e.currentTarget.dataset.id)
     if (id === this.data.familyId) return
+    const family = this.data.families.find(item => Number(item.id) === id)
+    if (!family) return
     app.globalData.familyId = id
+    app.globalData.family = null
     wx.setStorageSync('familyId', id)
     this.setData({
       familyId: id,
-      family: null,
+      family: family,
+      familyLoading: true,
+      familyLoadError: '',
+      loading: true,
       familyOwner: false,
       members: [],
       familyVisible: false,
@@ -663,9 +679,7 @@ Page({
       inviteCode: (this.inviteCodes && this.inviteCodes[id]) || ''
     })
     this.updateBasket([])
-    this.loadFamily(id)
-    this.loadOrders()
-    this.loadMenu()
+    return Promise.all([this.loadFamily(id), this.loadOrders(), this.loadMenu()])
   },
 
   switchTab(e) {
@@ -687,7 +701,7 @@ Page({
   onWheelNavigate(e) {
     this.switchTab({ currentTarget: { dataset: { tab: e.detail.tab } } })
     if (e.detail.login && !this.isLoggedIn()) {
-      this.showLogin('', '登录后可以自定义自己的转盘', 'family')
+      this.showLogin('', '登录后可以自定义自己的餐厅卡牌', 'family')
     }
   },
   toggleSearch() {
@@ -802,7 +816,7 @@ Page({
     this.updateBasket(basket)
   },
   updateBasket(basket) {
-    this.setData({ basket: basket, basketCount: basket.length, basketTotal: basket.length }, this.refreshDisplayDishes)
+    this.setData({ basket: basket, basketCount: basket.length, basketTotal: basket.reduce((total, item) => total + Number(item.quantity || 0), 0) }, this.refreshDisplayDishes)
   },
   openBasket() {
     const selected = this.data.dishes.filter(dish => dish.quantity > 0).map(dish => ({
@@ -813,7 +827,7 @@ Page({
     }))
     const basket = selected.length ? selected : this.data.basket
     if (!basket.length) return wx.showToast({ title: '先选几道菜吧', icon: 'none' })
-    this.setData({ basket: basket, basketCount: basket.length, basketTotal: basket.length, basketVisible: true })
+    this.setData({ basket: basket, basketCount: basket.length, basketTotal: basket.reduce((total, item) => total + Number(item.quantity || 0), 0), basketVisible: true })
   },
   closeBasket() { this.setData({ basketVisible: false }) },
   clearBasket() { this.updateBasket([]); this.closeBasket() },
@@ -1139,7 +1153,7 @@ Page({
     const name = this.data.family.name
     wx.showModal({
       title: '删除家庭组',
-      content: '确认删除“' + name + '”吗？所有成员将退出，该组的家庭菜谱、订单和转盘数据将一并删除，且无法恢复。',
+      content: '确认删除“' + name + '”吗？所有成员将退出，该组的家庭菜谱、订单和抽卡数据将一并删除，且无法恢复。',
       confirmText: '确认删除',
       confirmColor: '#b25f50',
       success: res => {
