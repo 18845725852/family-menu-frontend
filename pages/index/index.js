@@ -295,14 +295,7 @@ Page({
     if (this.loginPromise) return this.loginPromise
     this.loginPromise = new Promise((resolve, reject) => wx.login({
       success: login => {
-        console.log('[wx.login success]', login)
         if (!login.code) return reject(new Error('微信登录未返回 code'))
-
-        const loginUrl = (app.globalData.apiBaseUrl || '') + '/api/auth/wechat-login'
-        console.log('[wechat-login request]', {
-          url: loginUrl,
-          codeLength: login.code.length
-        })
 
         request('/api/auth/wechat-login', {
           method: 'POST',

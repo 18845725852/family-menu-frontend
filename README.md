@@ -1,18 +1,44 @@
 # 家庭菜单微信小程序
 
-这是家庭菜单后端的微信小程序前端，当前页面包含三条 MVP 主流程：
+用于家庭选菜下单、共享菜谱和抽卡选餐厅。服务启动与接口说明见[后端仓库](https://github.com/18845725852/family-menu-backend)。前后端独立获取，无需放在同级目录。
 
-- 点菜：按分类浏览可供应菜品，调整数量并提交订单
-- 订单：查看历史点菜记录和订单备注
-- 家庭：创建家庭、查看成员、添加或移除成员
+## 功能概览
 
-## 本地联调
+| 入口 | 功能 |
+| --- | --- |
+| 菜谱 | 分类搜索、图片及做法、选择份数、点菜篮 |
+| 抽卡 | 随机选餐厅、家庭候选列表、抽卡记录 |
+| 订单 | 查看家庭点菜记录和备注、滑动删除 |
+| 我的 | 微信登录、个人资料、家庭切换、邀请码加入、成员及自定义菜谱管理 |
 
-1. 在微信开发者工具中导入本目录，使用 `project.config.json` 中的 AppID。
-2. 启动后端：在 `/Users/workspace/family-menu-backend` 执行 `mvn spring-boot:run -Dspring-boot.run.profiles=memory`。内存模式提供开发用登录接口，数据会在重启后清空。
-3. 开发者工具的“详情 -> 本地设置”勾选“不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书”。
-4. 默认接口地址在 `app.js` 的 `globalData.apiBaseUrl`，开发者工具访问本机时保持 `http://localhost:8081`；真机调试时改为电脑局域网 IP，例如 `http://192.168.1.10:8081`。
+家庭成员共享菜谱、候选餐厅和订单。开启自定义菜谱时复制默认菜品，重新开启保留已有内容；被历史订单引用的菜品不能删除。删除家庭会清理该家庭业务数据。订单用于记录选菜，当前不含支付和制作状态流转。
 
-后端返回统一的 `{ success, message, data }` 结构，页面请求层会自动提取 `data` 并展示后端错误信息。生产环境需要把接口切换为 HTTPS，并在微信公众平台配置 request 合法域名。
+## 本地运行
 
-家庭邀请使用 6 位邀请码。数据库升级时，在已执行会话和订单迁移后，再执行后端目录下的 `src/main/resources/migration-family-invitation.sql`。
+1. 在本仓库根目录执行 `Copy-Item config.example.js config.local.js`，再在微信开发者工具导入项目，核对 `project.config.json` 中的 AppID。已有本地配置时跳过复制。
+2. 获取后端代码，在后端仓库根目录启动服务。无 MySQL 时可使用开发内存模式：
+
+   ```powershell
+   mvn spring-boot:run "-Dspring-boot.run.profiles=memory"
+   ```
+
+3. 开发者工具本地设置中勾选「不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书」。
+4. 在不提交的 `config.local.js` 中配置 `apiBaseUrl`。本机开发可用 `http://localhost:8081`，真机局域网调试改为手机可访问的电脑 IP。
+
+内存模式使用固定开发用户，业务数据随后端重启清空，仅用于开发；图片仍写入后端磁盘。
+
+## 测试
+
+安装支持内置测试运行器的 Node.js，在本仓库根目录执行：
+
+```powershell
+node --test tests/*.test.js
+```
+
+现有测试使用模拟微信环境，覆盖家庭及菜谱切换、点菜篮和抽卡交互；发布前仍需真机联调。
+
+## 发布配置
+
+- 在本地配置中将接口地址切换为正式 HTTPS 地址，配置微信公众平台实际使用的 request、uploadFile 等合法域名，并验证图片加载。
+- 后端使用持久化数据库和真实微信登录配置，正式部署前核对接口权限。
+- 数据库升级及图片目录备份见[后端仓库 README](https://github.com/18845725852/family-menu-backend)。

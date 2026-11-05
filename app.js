@@ -1,3 +1,5 @@
+const config = require('./config.local.js')
+
 function readNavMetrics() {
   try {
     const windowInfo = (wx.getWindowInfo && wx.getWindowInfo()) || wx.getSystemInfoSync() || {}
@@ -25,10 +27,7 @@ function readNavMetrics() {
 }
 
 App({
-  globalData: {
-    // 开发者工具可直接访问本机；真机调试时改成电脑局域网 IP。
-    apiBaseUrl: 'https://api.familymenu.ink',
-    // apiBaseUrl: 'http://localhost:8081',
+  globalData: {    apiBaseUrl: config.apiBaseUrl,
     currentUser: null,
     pendingBasket: [],
     orderEditing: false,
