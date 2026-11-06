@@ -74,7 +74,6 @@ Page({
     orderRemark: '',
     orders: [],
     orderSwipeId: null,
-    orderSwipeOffset: 0,
     orderSwipeDragging: false,
     deletingOrderId: null,
     familyId: null,
@@ -410,48 +409,21 @@ Page({
     }).catch(err => this.setData({ error: err.message }))
   },
 
-  closeOrderSwipe() {
-    this.orderSwipeGesture = null
-    if (this.data.orderSwipeId !== null || this.data.orderSwipeDragging) {
-      this.setData({ orderSwipeId: null, orderSwipeOffset: 0, orderSwipeDragging: false })
-    }
-  },
-  onOrderTouchStart(e) {
-    if (this.data.deletingOrderId !== null || e.touches.length !== 1) return this.closeOrderSwipe()
+  onOrderSwipeStart(e) {
+    if (this.data.deletingOrderId !== null) return
     const id = Number(e.currentTarget.dataset.id)
-    if (this.data.orderSwipeId !== id) this.closeOrderSwipe()
-    const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
-    this.orderSwipeGesture = {
-      id: id,
-      x: e.touches[0].clientX,
-      y: e.touches[0].clientY,
-      offset: this.data.orderSwipeOffset,
-      scale: 750 / info.windowWidth,
-      horizontal: false
-    }
+    this.setData({ orderSwipeId: this.data.orderSwipeId === id ? id : null, orderSwipeDragging: true })
   },
-  onOrderTouchMove(e) {
-    const gesture = this.orderSwipeGesture
-    if (!gesture) return
-    if (e.touches.length !== 1) return this.closeOrderSwipe()
-    const dx = e.touches[0].clientX - gesture.x
-    const dy = e.touches[0].clientY - gesture.y
-    if (!gesture.horizontal) {
-      if (Math.max(Math.abs(dx), Math.abs(dy)) < 8) return
-      if (Math.abs(dy) >= Math.abs(dx)) return this.closeOrderSwipe()
-      gesture.horizontal = true
-    }
-    const offset = Math.max(-144, Math.min(0, gesture.offset + dx * gesture.scale))
-    this.setData({ orderSwipeId: gesture.id, orderSwipeOffset: offset, orderSwipeDragging: true })
+  onOrderSwipeEnd(e) {
+    this.setData({ orderSwipeId: e.detail.opened ? Number(e.currentTarget.dataset.id) : null, orderSwipeDragging: false })
   },
-  onOrderTouchEnd() {
-    const gesture = this.orderSwipeGesture
-    this.orderSwipeGesture = null
-    if (!gesture) return
-    if (gesture.horizontal && this.data.orderSwipeOffset <= -48) {
-      this.setData({ orderSwipeId: gesture.id, orderSwipeOffset: -144, orderSwipeDragging: false })
-    } else {
-      this.closeOrderSwipe()
+  onOrderScroll() {
+    if (this.data.orderSwipeDragging) return
+    this.closeOrderSwipe()
+  },
+  closeOrderSwipe() {
+    if (this.data.orderSwipeId !== null || this.data.orderSwipeDragging) {
+      this.setData({ orderSwipeId: null, orderSwipeDragging: false })
     }
   },
   deleteOrder(e) {

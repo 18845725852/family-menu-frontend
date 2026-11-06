@@ -6,7 +6,7 @@
       <view class="title">外出吃什么</view>
       <view class="subtitle">{{hasFamily ? '家庭抽卡，选项和结果全家人都能看到' : (loggedIn ? '加入家庭后，抽卡和结果才会全家共享' : '别纠结了，让命运替你点单')}}</view>
     </view>
-    <view class="back-btn" bindtap="goBack"><text class="back-icon">‹</text><text>返回菜谱</text></view>
+    <view class="back-btn" bindtap="goBack"><image class="back-icon" src="/assets/chevron-left.svg" mode="aspectFit"/><text class="back-label">返回菜谱</text></view>
   </view>
 
   <view class="stage">
@@ -42,7 +42,7 @@
       </view>
     </view>
     <view class="deck-caption">{{restaurants.length ? '共 ' + restaurants.length + ' 张餐厅卡 · 每次随机抽取' : '把想去的餐厅，放进这一叠卡'}}</view>
-    <button class="draw-button {{loading || error || editing || saving || spinning || recording || !restaurants.length ? 'draw-button-disabled' : ''}}" disabled="{{loading || error || editing || saving || spinning || recording || !restaurants.length}}" bindtap="spinWheel">{{loading ? '正在准备卡牌…' : (spinning ? (drawPhase === 'shuffling' || drawPhase === 'preparing' || drawPhase === 'gathering' ? '正在洗牌…' : (drawPhase === 'drawing' || drawPhase === 'holding' ? '正在抽出…' : '正在揭晓…')) : (recording ? '正在保存记录…' : (hasSpun ? '再抽一张' : '抽一张，去吃饭')))}}</button>
+    <button class="draw-button {{loading || error || editing || saving || spinning || recording || deletingSpinId !== null || !restaurants.length ? 'draw-button-disabled' : ''}}" disabled="{{loading || error || editing || saving || spinning || recording || deletingSpinId !== null || !restaurants.length}}" bindtap="spinWheel">{{loading ? '正在准备卡牌…' : (spinning ? (drawPhase === 'shuffling' || drawPhase === 'preparing' || drawPhase === 'gathering' ? '正在洗牌…' : (drawPhase === 'drawing' || drawPhase === 'holding' ? '正在抽出…' : '正在揭晓…')) : (recording ? '正在保存记录…' : (hasSpun ? '再抽一张' : '抽一张，去吃饭')))}}</button>
     <view class="draw-hint">{{spinning ? '让这一餐，多一点期待' : '也可以轻点卡牌开始抽取'}}</view>
     <view wx:if="{{error}}" class="status-text error">{{error}}<text class="retry-link" bindtap="loadWheel">重新加载</text></view>
   </view>
@@ -133,6 +133,7 @@
             </view>
             <view class="spin-time">{{item.timeText}}</view>
           </view>
+          <view class="spin-delete {{deletingSpinId !== null || historyLoading || spinning || recording || loading || editing || saving ? 'spin-delete-disabled' : ''}}" role="button" aria-label="删除抽卡记录" data-id="{{item.id}}" catchtap="deleteSpin">{{deletingSpinId === item.id ? '删除中…' : '删除'}}</view>
         </view>
       </view>
     </scroll-view>

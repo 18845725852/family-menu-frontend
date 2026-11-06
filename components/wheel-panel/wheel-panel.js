@@ -67,7 +67,11 @@ const DRAW_FRAMES = [
   { phase: 'holding', x: 14, y: -154, angle: 2, deckY: 250, deckScale: 0.6, duration: 180 },
   { phase: 'flipping', x: 14, y: -154, scale: 0.02, deckY: 250, deckScale: 0.6, duration: 220 },
   { phase: 'revealing', y: -120, deckY: 250, deckScale: 0.6, duration: 300, front: true },
-  { phase: 'settling', duration: 420, front: true }
+  { phase: 'settling', duration: 420, front: true },
+  // Hold the landed card on the UI clock before JS unlocks the wheel. The native
+  // animation's last presented frame can trail its completion callback; without
+  // this hold the card snaps up a few pixels as the state commits.
+  { phase: 'landed', duration: 160, front: true }
 ]
 
 function sampleCardMotion(progress, frames) {
@@ -155,6 +159,7 @@ Component({
     allSpins: [],
     historyVisible: false,
     historyLoading: false,
+    deletingSpinId: null,
     historyHeight: 420,
     defaultAvatarUrl: '/assets/default-avatar.jpg',
     editing: false,
@@ -201,6 +206,7 @@ Component({
         this.wheelContext = context
         this.loadTicket = (this.loadTicket || 0) + 1
         this.stopAnimation()
+        this.setData({ deletingSpinId: null })
         this.setData({ editing: false, saving: false, recording: false, loading: false, error: '', draft: [], spinning: false, cardFaceFront: false, cardRestaurantName: '', drawPhase: 'idle', cardTransform: 'translate(0rpx, 0rpx) rotate(0deg) scaleX(1)', packTransform: 'translate(0rpx, 0rpx) rotate(0deg)', deckTransform: 'translateY(0rpx) scale(1)', cardDuration: 0, result: null, hasSpun: false, historyVisible: false, historyLoading: false, allSpins: [], restaurants: [], spins: [], recentSpins: [], hasFamily: false })
         this.resetCardMotion()
       }
@@ -315,7 +321,7 @@ Component({
     },
 
     loadWheel() {
-      if (this.data.editing || this.data.saving || this.data.spinning || this.data.recording) return Promise.resolve()
+      if (this.data.editing || this.data.saving || this.data.spinning || this.data.recording || this.data.deletingSpinId !== null) return Promise.resolve()
       const loggedIn = this.isLoggedIn()
       const familyId = loggedIn ? app.globalData.familyId : null
       const ticket = (this.loadTicket || 0) + 1
@@ -351,6 +357,7 @@ Component({
     },
 
     startEdit() {
+      if (this.data.deletingSpinId !== null) return
       if (this.data.loading || this.data.error || this.data.spinning || this.data.recording || this.data.saving || this.data.editing) return
       if (!this.isLoggedIn()) {
         wx.showToast({ title: '请先到「我的」登录', icon: 'none' })
@@ -478,7 +485,10 @@ Component({
     },
 
     openHistory() {
+      if (this.data.deletingSpinId !== null) return
       if (!this.data.spins.length) return
+      const ticket = (this.historyTicket || 0) + 1
+      this.historyTicket = ticket
       this.setData({
         historyVisible: true,
         historyLoading: true,
@@ -490,21 +500,59 @@ Component({
       }
       const context = this.wheelContext
       request('/api/families/' + app.globalData.familyId + '/wheel/spins').then(list => {
-        if (context !== this.wheelContext || !this.data.historyVisible || !this.wheelReady) return
+        if (ticket !== this.historyTicket || context !== this.wheelContext || !this.data.historyVisible || !this.wheelReady) return
         this.setData({
           allSpins: (list || []).map(item => this.decorateSpin(item)),
           historyLoading: false
         })
       }).catch(err => {
-        if (context !== this.wheelContext || !this.data.historyVisible || !this.wheelReady) return
+        if (ticket !== this.historyTicket || context !== this.wheelContext || !this.data.historyVisible || !this.wheelReady) return
         this.setData({ historyLoading: false })
         if (err.statusCode === 404) return
         wx.showToast({ title: err.message || '全部记录加载失败', icon: 'none' })
       })
     },
 
+    deleteSpin(e) {
+      const id = Number(e.currentTarget.dataset.id)
+      const familyId = app.globalData.familyId
+      const context = this.wheelContext
+      const contextTicket = this.loadTicket
+      const isCurrent = () => this.wheelReady && context === this.wheelContext && contextTicket === this.loadTicket
+      const canDelete = () => isCurrent() && familyId === app.globalData.familyId &&
+        this.data.hasFamily && this.data.loggedIn && this.data.historyVisible && !this.data.loading && !this.data.historyLoading &&
+        !this.data.spinning && !this.data.recording && !this.data.editing && !this.data.saving && this.data.deletingSpinId === null
+      if (!canDelete() || this.spinDeleteConfirming || !id) return
+      if (!this.data.allSpins.some(item => Number(item.id) === id)) return
+      this.spinDeleteConfirming = true
+      wx.showModal({
+        title: '删除抽卡记录',
+        content: '确定删除这条记录吗？删除后家里人也将看不到，且无法恢复。',
+        confirmText: '删除',
+        confirmColor: '#a66f64',
+        success: res => {
+          if (!res.confirm || !canDelete()) return
+          this.setData({ deletingSpinId: id })
+          request('/api/families/' + familyId + '/wheel/spins/' + id, { method: 'DELETE' }).then(data => {
+            if (!isCurrent()) return
+            const spins = ((data || {}).spins || []).map(item => this.decorateSpin(item))
+            this.setData(Object.assign(this.spinLists(spins), {
+              allSpins: this.data.allSpins.filter(item => Number(item.id) !== id)
+            }))
+            wx.showToast({ title: '记录已删除', icon: 'success' })
+          }).catch(err => {
+            if (isCurrent()) wx.showToast({ title: err.message || '删除失败，请重试', icon: 'none' })
+          }).finally(() => {
+            if (isCurrent()) this.setData({ deletingSpinId: null })
+          })
+        },
+        complete: () => { this.spinDeleteConfirming = false }
+      })
+    },
+
     closeHistory() {
-      this.setData({ historyVisible: false })
+      this.historyTicket = (this.historyTicket || 0) + 1
+      this.setData({ historyVisible: false, historyLoading: false })
     },
 
     noop() {},
@@ -539,6 +587,7 @@ Component({
     },
 
     spinWheel() {
+      if (this.data.deletingSpinId !== null) return
       if (this.data.loading || this.data.error || this.data.editing || this.data.saving || this.data.spinning || this.data.recording) return
       if (!this.data.restaurants.length) {
         wx.showToast({ title: '还没有可抽的餐厅', icon: 'none' })

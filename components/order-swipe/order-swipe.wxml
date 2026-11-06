@@ -1,0 +1,6 @@
+<view class="swipe-row">
+  <view class="delete-button {{disabled ? 'delete-disabled' : ''}}" role="button" aria-label="删除订单" catchtap="deleteOrder">{{deleting ? '删除中…' : '删除'}}</view>
+  <horizontal-drag-gesture-handler worklet:ongesture="onGesture">
+    <view id="swipe-content" class="swipe-content {{nativeEnabled || dragging ? 'without-transition' : ''}}" style="{{nativeEnabled ? '' : 'transform:translateX(' + offset + 'rpx);'}}" bindtouchstart="onTouchStart" bindtouchmove="onTouchMove" bindtouchend="onTouchEnd" bindtouchcancel="onTouchCancel"><slot/></view>
+  </horizontal-drag-gesture-handler>
+</view>

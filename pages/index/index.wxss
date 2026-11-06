@@ -41,7 +41,7 @@ page { min-height: 100vh; }
 .basket-button,.primary-button { height:76rpx; padding:0 30rpx; border:0; border-radius:10rpx; color:#fff; background:#3f4536; font-size:26rpx; line-height:76rpx; }
 .basket-button { flex:none; width:auto !important; margin:0 0 0 auto; }
 .basket-button text { margin-left:14rpx; color:#e2b96f; font-size:34rpx; }
-.section-heading { display:flex; align-items:center; justify-content:space-between; padding:38rpx 0 22rpx; }.section-title { display:block; color:#3f4536; font-size:34rpx; font-weight:700; }.section-note { display:block; margin-top:8rpx; color:#8b8f81; font-size:22rpx; }.refresh { color:#777d66; font-size:23rpx; }.back-menu { display:flex; align-items:center; gap:4rpx; padding:12rpx 18rpx 12rpx 12rpx; border:1rpx solid #e4e9e4; border-radius:999rpx; background:#f4f5ef; color:#536158; font-size:23rpx; font-weight:600; box-shadow:0 5rpx 12rpx rgba(32,48,42,.06); }.back-menu-icon { display:flex; align-items:center; justify-content:center; width:26rpx; height:30rpx; font-size:38rpx; font-family:Arial,sans-serif; font-weight:400; line-height:26rpx; transform:translateY(-1rpx); color:#777d66; }
+.section-heading { display:flex; align-items:center; justify-content:space-between; padding:38rpx 0 22rpx; }.section-title { display:block; color:#3f4536; font-size:34rpx; font-weight:700; }.section-note { display:block; margin-top:8rpx; color:#8b8f81; font-size:22rpx; }.refresh { color:#777d66; font-size:23rpx; }.back-menu { display:flex; align-items:center; gap:4rpx; padding:12rpx 18rpx 12rpx 12rpx; border:1rpx solid #e4e9e4; border-radius:999rpx; background:#f4f5ef; color:#536158; font-size:23rpx; font-weight:600; box-shadow:0 5rpx 12rpx rgba(32,48,42,.06); }.back-menu-icon { display:block; flex:none; width:28rpx; height:32rpx; }.back-menu-label { display:block; line-height:32rpx; }
 .order-date { display:flex; align-items:center; gap:8rpx; padding:28rpx 0 14rpx; color:#536158; font-size:24rpx; font-weight:600; }.date-clock { color:#777d66; font-size:28rpx; }.order-card { margin-bottom:20rpx; padding:24rpx; border:1rpx solid #e6ebe6; border-radius:12rpx; background:#fff; }.order-top { display:flex; align-items:flex-start; justify-content:space-between; }.order-customer { color:#3f4536; font-weight:700; font-size:29rpx; }.order-time { margin-left:16rpx; color:#8b8f81; font-size:21rpx; }.order-items { margin-top:22rpx; color:#46564d; font-size:25rpx; line-height:1.6; }.order-remark { margin-top:14rpx; padding-top:14rpx; border-top:1rpx solid #eef1ed; color:#8b8f81; font-size:22rpx; }
 .family-intro { display:flex; flex-direction:column; align-items:center; padding:100rpx 30rpx; text-align:center; }.family-icon { margin-bottom:30rpx; color:#777d66; font-size:80rpx; }.family-intro .section-title { font-size:36rpx; }.family-intro .section-note { margin:16rpx 0 38rpx; }.primary-button { min-width:280rpx; }
 .family-header { display:flex; align-items:flex-end; justify-content:space-between; padding:42rpx 0 14rpx; }.family-name { margin-top:12rpx; font-size:42rpx; }.family-id { color:#a2aba4; font-size:21rpx; }.member-list { border-top:1rpx solid #e6ebe6; }.member-row { display:flex; align-items:center; padding:22rpx 0; border-bottom:1rpx solid #e6ebe6; }.avatar { display:flex; align-items:center; justify-content:center; width:64rpx; height:64rpx; border-radius:50%; color:#fff; background:#758b7d; font-size:28rpx; }.member-main { flex:1; margin-left:18rpx; }.member-name { display:block; font-size:27rpx; font-weight:600; }.member-role { display:block; margin-top:5rpx; color:#8b8f81; font-size:21rpx; }.member-remove { color:#777d66; font-size:21rpx; }.member-input,.form-input,.form-textarea { flex:1; padding:0 20rpx; border:1rpx solid #e3e5dc; border-radius:10rpx; background:#fff; font-size:25rpx; }.member-input { height:70rpx; }.small-button { height:70rpx; line-height:70rpx; }
@@ -638,37 +638,8 @@ page { min-height: 100vh; }
   align-items: center;
   gap: 16rpx;
 }
-.order-swipe {
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 20rpx;
-  border-radius: 12rpx;
-  background: #a66f64;
-}
-.order-swipe .order-card {
-  position: relative;
-  z-index: 1;
+.order-card {
   margin-bottom: 0;
-  transition: transform .2s ease;
-}
-.order-swipe .order-card-dragging {
-  transition: none;
-}
-.order-delete {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 144rpx;
-  color: #fff;
-  font-size: 26rpx;
-  font-weight: 600;
-}
-.order-delete-disabled {
-  opacity: .6;
 }
 .order-avatar {
   flex: none;

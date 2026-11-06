@@ -9,10 +9,12 @@ view, text { box-sizing:border-box; }
 .title { margin-top:10rpx; color:#3f4536; font-size:46rpx; font-weight:800; line-height:1.15; }
 .subtitle { margin-top:8rpx; color:#5f6f66; font-size:22rpx; line-height:1.45; }
 .back-btn { display:flex; flex:none; margin-top:10rpx; align-items:center; gap:6rpx; padding:10rpx 16rpx; border:1rpx solid #e3e5dc; color:#575e4b; font-size:23rpx; }
-.back-icon { display:flex; align-items:center; justify-content:center; width:28rpx; height:32rpx; font-size:42rpx; font-family:Arial,sans-serif; font-weight:400; line-height:28rpx; transform:translateY(-1rpx); }
+.back-icon { display:block; flex:none; width:28rpx; height:32rpx; }
+.back-label { display:block; line-height:32rpx; }
 .stage { display:flex; flex:1; min-height:0; flex-direction:column; align-items:center; }
 .card-stage { position:relative; flex:1; min-height:0; width:100%; }
-.card-canvas { position:absolute; top:0; left:50%; width:694rpx; height:800rpx; margin-left:-347rpx; transform-origin:50% 0; }
+/* Keep the visible card center (144 + 480 / 2) fixed while scaling. */
+.card-canvas { position:absolute; top:50%; left:50%; width:694rpx; height:800rpx; margin-top:-384rpx; margin-left:-347rpx; transform-origin:50% 384rpx; }
 .deck-card, .draw-card { position:absolute; left:50%; top:144rpx; width:380rpx; height:480rpx; margin-left:-190rpx; border:1rpx solid #d2d7c5; border-radius:22rpx; background:#eceedf; }
 .card-pack, .card-deck { position:absolute; top:0; right:0; bottom:0; left:0; transform-origin:50% 384rpx; }
 .deck-card { background-image:url('/assets/card-weave.svg'); background-repeat:repeat; background-size:40rpx 40rpx; }
@@ -142,6 +144,8 @@ view, text { box-sizing:border-box; }
 .spin-action { flex:none; margin:0 8rpx; color:#8a988f; font-size:22rpx; }
 .spin-restaurant { flex:1; min-width:0; color:#3f4536; font-size:26rpx; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .spin-time { margin-top:4rpx; color:#8b8f81; font-size:22rpx; }
+.spin-delete { display:flex; flex:none; align-items:center; justify-content:center; min-height:48rpx; padding:8rpx 12rpx; margin-left:8rpx; color:#a66f64; font-size:23rpx; }
+.spin-delete-disabled { opacity:.45; }
 
 .panel-link { flex: none; color: #777d66; font-size: 24rpx; font-weight: 700; }
 .history-mask { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 40; background: rgba(32,48,42,.45); display: flex; align-items: flex-end; justify-content: center; }

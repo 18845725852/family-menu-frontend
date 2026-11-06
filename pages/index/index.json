@@ -1,6 +1,7 @@
 {
   "usingComponents": {
-    "wheel-panel": "/components/wheel-panel/wheel-panel"
+    "wheel-panel": "/components/wheel-panel/wheel-panel",
+    "order-swipe": "/components/order-swipe/order-swipe"
   },
   "enablePullDownRefresh": true
 }
